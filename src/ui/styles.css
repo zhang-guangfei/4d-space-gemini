@@ -1070,3 +1070,338 @@ body {
     text-overflow: ellipsis;
   }
 }
+
+/* ---------------------------------------------------------------------------
+ * Zone A: Corridor Research Station (Levels 0–4) Clean Aerospace Theme
+ * High-legibility slate-frosted scientific HUD over Soft-Mist White #ECEEF2
+ * --------------------------------------------------------------------------- */
+body.zone-a {
+  --bg-obsidian: #d8dfe8;
+  --surface-panel: rgba(18, 26, 38, 0.84);
+  --surface-panel-strong: rgba(15, 22, 32, 0.94);
+  --border-bronze: rgba(154, 165, 180, 0.42);
+  --border-subtle: rgba(236, 238, 242, 0.16);
+}
+
+body.zone-a .zone-pill {
+  color: var(--accent-cyan);
+  background: rgba(15, 23, 34, 0.88);
+  border-color: rgba(77, 230, 211, 0.42);
+}
+
+body.zone-a .level-heading {
+  color: #151f2d;
+  text-shadow: 0 1px 10px rgba(255, 255, 255, 0.85);
+}
+
+body.zone-a.is-prologue .level-heading {
+  color: #f6f8fa;
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.8);
+}
+
+body.zone-a .telemetry-bar {
+  background: rgba(15, 23, 34, 0.78);
+  border-color: rgba(154, 165, 180, 0.28);
+  color: rgba(236, 242, 250, 0.84);
+}
+
+body.zone-a .beats-strip {
+  background: rgba(15, 23, 34, 0.82);
+  border-color: rgba(154, 165, 180, 0.3);
+}
+
+body.zone-a .reticle-mark {
+  box-shadow: 0 0 0 1.5px rgba(15, 23, 34, 0.65), 0 0 8px rgba(77, 230, 211, 0.5);
+}
+
+body.zone-a .reticle-prompt {
+  background: rgba(13, 20, 31, 0.92);
+  color: #f6f8fa;
+  border: 1px solid rgba(77, 230, 211, 0.58);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+
+body.zone-a .modal-card {
+  background: #141c27;
+  border-color: rgba(154, 165, 180, 0.36);
+}
+
+/* Hide Chapter 2/C-Zone-only widgets cleanly when in Chapter 1 */
+body.mode-ch1 #w-ruler-box,
+body.mode-ch1 #side-view-panel,
+body.mode-ch1 #tab-entry-pill,
+body.mode-ch1 #btn-guide {
+  display: none !important;
+}
+
+body.is-prologue #hud-root {
+  pointer-events: none;
+}
+
+body.zone-a .subtitle-bar {
+  top: 14px;
+  left: 50%;
+  max-width: min(470px, 42vw);
+  padding: 8px 14px;
+  background: rgba(14, 21, 32, 0.92);
+  border-color: rgba(77, 230, 211, 0.4);
+}
+
+body.is-prologue .hud-top-left,
+body.is-prologue .hud-top-right,
+body.is-prologue #subtitle-bar,
+body.is-prologue #reticle,
+body.is-prologue #tactical-wrapper,
+body.is-prologue #control-strip,
+body.is-prologue #ch1-compass {
+  display: none !important;
+}
+
+/* Prologue Minimalist Story Overlay */
+.prologue-overlay {
+  position: fixed;
+  left: 50%;
+  bottom: 42px;
+  transform: translateX(-50%);
+  z-index: 25;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  max-width: min(640px, 90vw);
+  padding: 18px 26px;
+  border-radius: 10px;
+  background: rgba(10, 15, 24, 0.84);
+  border: 1px solid rgba(77, 230, 211, 0.38);
+  backdrop-filter: blur(12px);
+  text-align: center;
+  box-shadow: 0 20px 56px rgba(0, 0, 0, 0.6);
+}
+
+.prologue-overlay[hidden] {
+  display: none;
+}
+
+.prologue-eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: var(--accent-cyan);
+}
+
+.prologue-caption {
+  font-size: 16px;
+  line-height: 1.55;
+  color: #f4f7fb;
+  font-weight: 500;
+}
+
+/* Optical Telescope Reticle Overlay (Tab in Levels 1–4) */
+.telescope-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 8;
+  pointer-events: none;
+  background: radial-gradient(circle at center, transparent 34%, rgba(8, 14, 22, 0.72) 66%, rgba(4, 8, 14, 0.92) 100%);
+}
+
+.telescope-overlay[hidden] {
+  display: none;
+}
+
+.telescope-ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(56vh, 56vw);
+  height: min(56vh, 56vw);
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 1.5px solid rgba(77, 230, 211, 0.55);
+  box-shadow: 0 0 24px rgba(77, 230, 211, 0.18), inset 0 0 24px rgba(77, 230, 211, 0.1);
+}
+
+.telescope-label {
+  position: absolute;
+  left: 50%;
+  top: calc(50% + min(30vh, 30vw));
+  transform: translateX(-50%);
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(10, 16, 24, 0.86);
+  border: 1px solid rgba(77, 230, 211, 0.45);
+  color: var(--accent-cyan);
+  font-size: 11.5px;
+  letter-spacing: 0.06em;
+}
+
+/* Six-Direction Navigation Compass (Chapter 1 Levels 2–4) */
+.ch1-compass {
+  position: absolute;
+  left: 18px;
+  bottom: 52px;
+  z-index: 12;
+  width: min(312px, 42vw);
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(15, 22, 33, 0.86);
+  border: 1px solid rgba(154, 165, 180, 0.36);
+  backdrop-filter: blur(10px);
+  pointer-events: none;
+}
+
+.ch1-compass[hidden] {
+  display: none;
+}
+
+.compass-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 11px;
+  color: rgba(236, 242, 250, 0.85);
+}
+
+.compass-antipode {
+  color: #c4b5fd;
+  font-weight: 600;
+}
+
+.compass-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+}
+
+.compass-cell {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 7px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(154, 165, 180, 0.22);
+  font-size: 11px;
+  color: #edf2f8;
+}
+
+.compass-cell .dir-tag {
+  color: rgba(236, 242, 250, 0.58);
+  font-size: 10px;
+}
+
+.compass-cell.is-unvisited {
+  border-color: rgba(77, 230, 211, 0.55);
+  background: rgba(77, 230, 211, 0.12);
+}
+
+.compass-cell.is-visited {
+  border-color: rgba(255, 107, 107, 0.48);
+  background: rgba(255, 107, 107, 0.12);
+  color: #ffb3b3;
+}
+
+.compass-cell.is-finish,
+.compass-cell.is-target {
+  border-color: rgba(105, 240, 174, 0.72);
+  background: rgba(105, 240, 174, 0.18);
+  color: #b7ffda;
+  font-weight: 700;
+}
+
+/* Chapter 1 Interactive Terminal Modal */
+.ch1-terminal-card {
+  width: min(580px, 92vw);
+}
+
+.ch1-modal-desc {
+  margin: 14px 0;
+  font-size: 14px;
+  line-height: 1.65;
+  color: rgba(240, 244, 250, 0.88);
+}
+
+.ch1-options-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.ch1-option-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(154, 165, 180, 0.32);
+  color: #f4f7fb;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.16s ease, background 0.16s ease, transform 0.12s ease;
+}
+
+.ch1-option-btn:hover {
+  border-color: var(--accent-cyan);
+  background: rgba(77, 230, 211, 0.14);
+  transform: translateY(-1px);
+}
+
+.ch1-option-btn .opt-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.ch1-option-btn .opt-sub {
+  font-size: 11.5px;
+  color: rgba(230, 237, 245, 0.68);
+  font-family: var(--font-mono);
+}
+
+.ch1-modal-feedback {
+  margin-top: 14px;
+  min-height: 22px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-coral);
+}
+
+.ch1-modal-feedback.is-ok {
+  color: var(--accent-emerald);
+}
+
+/* Clickable LIVE items in Esc 18-level roadmap */
+.roadmap-item.is-live {
+  cursor: pointer;
+  color: rgba(240, 245, 252, 0.86);
+  border-color: rgba(77, 230, 211, 0.34);
+  background: rgba(77, 230, 211, 0.07);
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
+}
+
+.roadmap-item.is-live:hover {
+  background: rgba(77, 230, 211, 0.18);
+  border-color: var(--accent-cyan);
+  transform: translateY(-1px);
+}
+
+.setting-toggle-row {
+  grid-template-columns: 180px 1fr 28px;
+}
+
+.setting-toggle-row .toggle-desc {
+  font-size: 11.5px;
+  color: rgba(232, 238, 246, 0.72);
+}
+
+.setting-toggle-row input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent-cyan);
+  cursor: pointer;
+}
+

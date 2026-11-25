@@ -3,38 +3,51 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>维度之外 · Beyond 3D — 第 14 关：发丝裂缝</title>
-  <meta name="description" content="《维度之外 · Beyond 3D》— 基于真实四维欧氏几何与拓扑学的 3D 第一人称科幻解谜游戏（Phase 1 垂直切片：第 14 关发丝裂缝）。" />
+  <title>维度之外 · Beyond 3D</title>
+  <meta name="description" content="《维度之外 · Beyond 3D》— 基于真实四维欧氏几何与拓扑学的 3D 第一人称科幻解谜游戏（第一章《回廊》序章与第 1–4 关 + 第 14 关垂直切片）。" />
   <link rel="stylesheet" href="./styles.css" />
 </head>
-<body class="zone-c">
+<body class="zone-a">
   <!-- Full-bleed 3D WebGL Viewport (85%+ unobstructed space) -->
   <canvas id="render-canvas" aria-label="Beyond 3D 四维空间视口"></canvas>
 
-  <!-- Subtle Peripheral W-Layer / Collision Vignette -->
+  <!-- Subtle Peripheral W-Layer / Transit / Collision Vignette -->
   <div id="edge-shimmer" class="edge-shimmer" aria-hidden="true"></div>
+
+  <!-- Chapter 1 Optical Telescope Reticle Bezel (Tab in Levels 1–4) -->
+  <div id="telescope-overlay" class="telescope-overlay" hidden aria-hidden="true">
+    <div class="telescope-ring"></div>
+    <div class="telescope-label mono">3.0× 光学望远镜 · 按 Tab 退出</div>
+  </div>
+
+  <!-- Prologue Minimalist Overlay (Level 0 only) -->
+  <div id="prologue-overlay" class="prologue-overlay" hidden>
+    <div class="prologue-eyebrow mono">序章 · 迷航 — 深空勘测船「远航者号」</div>
+    <div id="prologue-caption" class="prologue-caption">跃迁曲率异常……舷窗外的星辰正在一颗接一颗熄灭。</div>
+    <button id="btn-skip-prologue" class="primary-btn" type="button">跳过序章 · 进入第 1 关 (Space)</button>
+  </div>
 
   <!-- Minimal Scientific HUD Layer -->
   <div id="hud-root" class="hud-root">
     <!-- Top-Left: Honest View Badge + Precision Telemetry + Non-Checklist 3-Beat Strip -->
-    <section class="hud-top-left" aria-label="空间切片与探索反馈">
+    <section class="hud-top-left" aria-label="空间状态与探索反馈">
       <div class="level-tag">
-        <span class="zone-pill">C 区 · 几何圣殿</span>
-        <h1 class="level-heading">第 14 关 · 发丝裂缝</h1>
+        <span id="zone-pill" class="zone-pill">A 区 · 回廊科研站</span>
+        <h1 id="level-heading" class="level-heading">第 1 关 · 前方的人</h1>
       </div>
 
       <div id="honest-view-badge" class="honest-badge">
         <div class="badge-dot" id="honest-badge-dot"></div>
         <div class="badge-text">
-          <div id="honest-badge-title" class="badge-title">我们所在的三维切面 · 第四维坐标 w = +0.00</div>
-          <div id="honest-badge-detail" class="badge-detail">把前方的青色圆球送到墙后方的金色底座上</div>
+          <div id="honest-badge-title" class="badge-title">正八胞体三维边界 · 舱室 W+</div>
+          <div id="honest-badge-detail" class="badge-detail">探索前方 24m 闭合回廊与窗外雕像规律</div>
         </div>
       </div>
 
-      <div class="telemetry-bar" aria-label="四维几何读数">
-        <span id="telemetry-coord" class="mono">XYZ (1.6, 1.9, -7.8) · w +0.00</span>
+      <div class="telemetry-bar" aria-label="空间几何读数">
+        <span id="telemetry-coord" class="mono">CELL W+ · (0.0, 1.7, 0.0)</span>
         <span class="sep">|</span>
-        <span id="telemetry-orb" class="mono">θ 0.0° · 四维总宽 1.000m / 缝 0.082m</span>
+        <span id="telemetry-orb" class="mono">回廊周期 4 间 · 总长 24.0m</span>
       </div>
 
       <!-- Non-Checklist 3-Beat Discovery Feedback (lights up organically upon discovery) -->
@@ -59,7 +72,7 @@
     <!-- Top-Center: Clean Character Voice Subtitle Card -->
     <aside id="subtitle-bar" class="subtitle-bar" aria-live="polite">
       <div class="subtitle-head">
-        <span id="subtitle-speaker" class="subtitle-speaker">遗迹 AI ·「墓地」</span>
+        <span id="subtitle-speaker" class="subtitle-speaker">林夏 · 07 号</span>
         <span id="subtitle-tier" class="subtitle-tier"></span>
       </div>
       <span id="subtitle-text" class="subtitle-text"></span>
@@ -78,13 +91,13 @@
       <button id="btn-voice" class="tool-btn is-active" type="button" title="开关双角色配音">
         <span id="btn-voice-label">配音 开</span>
       </button>
-      <button id="btn-console" class="tool-btn is-active" type="button" title="按 F 展开/收起高维全息操作台">
+      <button id="btn-console" class="tool-btn is-active" type="button" title="按 F 展开/收起全息拓扑图 / 高维操作台">
         <span class="keycap">F</span>
-        <span>高维台</span>
+        <span id="btn-console-label">拓扑图</span>
       </button>
       <button id="btn-pause" class="tool-btn" type="button" title="按 Esc 暂停 / 选关 / 设置">
         <span class="keycap">Esc</span>
-        <span>菜单</span>
+        <span>选关</span>
       </button>
     </nav>
 
@@ -94,25 +107,34 @@
       <div id="reticle-prompt" class="reticle-prompt"></div>
     </div>
 
-    <!-- Floating Visual Cue A: Scroll-Wheel Ownership Handoff (glides from w-ruler to orb on E grab!) -->
+    <!-- Chapter 1 Levels 2–4: Six-Direction Navigation Compass (shows ★/✗/◎ live!) -->
+    <section id="ch1-compass" class="ch1-compass" hidden aria-label="六向舱门导航罗盘">
+      <div class="compass-head">
+        <span id="compass-title" class="mono">六向气闸罗盘</span>
+        <span id="compass-antipode" class="compass-antipode mono">◎ 对跖盲区: W−</span>
+      </div>
+      <div id="compass-grid" class="compass-grid"></div>
+    </section>
+
+    <!-- Floating Visual Cue A (Level 14): Scroll-Wheel Ownership Handoff -->
     <div id="wheel-handoff-cue" class="wheel-handoff-cue" aria-hidden="true">
       <span class="wheel-glyph">⇕</span>
       <span>滚轮：旋转手中的球</span>
     </div>
 
-    <!-- Floating Visual Cue B: Short Screen-Space Callout anchored to cyan disc on first slight tilt -->
+    <!-- Floating Visual Cue B (Level 14): Short Screen-Space Callout anchored to cyan disc -->
     <div id="slice-callout-tag" class="slice-callout-tag" aria-hidden="true">
       <span class="callout-dot"></span>
       <span>留在这一层的部分</span>
     </div>
 
-    <!-- Progressive Bottom-Left Tab Entry Pill (shown while grabbed before Side View opens; pulses after tilted bump!) -->
+    <!-- Progressive Bottom-Left Tab Entry Pill (Level 14 only) -->
     <button id="tab-entry-pill" class="tab-entry-pill" type="button" hidden title="按 Tab 查看第四维度侧视图">
       <span class="keycap">Tab</span>
       <span id="tab-entry-label">查看侧视图</span>
     </button>
 
-    <!-- Bottom-Left: Honest Fourth-Dimension Side-View Panel (Opens cleanly on Tab) -->
+    <!-- Bottom-Left: Honest Fourth-Dimension Side-View Panel (Level 14 only) -->
     <section id="side-view-panel" class="side-view-panel" aria-label="第四维度侧视图">
       <div class="panel-header">
         <span class="panel-title">第四维度侧视图 · △ 与 ○ 对应圆球两端</span>
@@ -127,9 +149,8 @@
       </div>
     </section>
 
-    <!-- Right Edge: Vertical w Phase Ruler + Collapsible 3-Layer Hyper-Holographic Console (F) -->
-    <aside id="tactical-wrapper" class="tactical-wrapper" aria-label="高维全息操作台">
-      <!-- Slim Always-Visible Vertical w Phase Ruler (dims when scroll wheel transfers to grabbed orb) -->
+    <!-- Right Edge: Vertical w Phase Ruler (Ch2) + Collapsible Hologram Console / Topology Map (F) -->
+    <aside id="tactical-wrapper" class="tactical-wrapper" aria-label="全息拓扑图与高维操作台">
       <div id="w-ruler-box" class="w-ruler" title="鼠标滚轮沿第四维度 w 轴移动">
         <span class="w-tick w-pos">+1.8</span>
         <div class="w-track">
@@ -142,11 +163,10 @@
         <span id="w-ruler-readout" class="w-readout mono">w +0.00</span>
       </div>
 
-      <!-- Collapsible 3-Layer Side-by-Side Holographic Viewport -->
       <div id="tactical-body" class="tactical-body">
         <div class="panel-header">
-          <span class="panel-title">高维全息台 · 三层俯视</span>
-          <span class="mono panel-sub">沿第四维度 w</span>
+          <span id="tactical-panel-title" class="panel-title">八胞体全息拓扑图</span>
+          <span id="tactical-panel-sub" class="mono panel-sub">8 胞 · 24 面</span>
         </div>
         <canvas id="tactical-canvas" class="tactical-canvas"></canvas>
       </div>
@@ -154,26 +174,41 @@
 
     <!-- Bottom-Center: Compact Context Control Micro-Strip -->
     <div id="control-strip" class="control-strip">
-      <span id="control-strip-text">WASD 移动 · 拖拽/点击环视 · <strong>滚轮沿 w 轴移动</strong> · 靠近圆球按 <strong>E</strong> 抓取 · <strong>H</strong> 提示 · <strong>I</strong> 原理</span>
+      <span id="control-strip-text">WASD 行走 · 点击/拖拽环视 · <strong>左键/G 举左手挥手</strong> · <strong>Tab</strong> 望远镜 · <strong>F</strong> 拓扑图 · <strong>H</strong> 提示</span>
     </div>
 
     <!-- Compact Transient Block Feedback Toast -->
     <div id="block-toast" class="block-toast" role="status" aria-live="polite"></div>
 
-    <!-- Compact Non-Blocking Unlock Banner (Walls part open automatically so player walks to Teleporter!) -->
+    <!-- Compact Non-Blocking Unlock / Stage Complete Banner -->
     <div id="victory-banner" class="victory-banner" hidden>
-      <div class="victory-badge">钥匙归位 · 四维巨墙已为你敞开</div>
-      <p class="victory-copy">
-        圆球从未被压扁，只是像立起的硬币一样把宽度转进了第四维度 w。现在请<strong>穿过打开的四维巨墙</strong>，走向前方发光的<strong>北侧传送台</strong>前往下一关！
-      </p>
+      <div id="victory-badge" class="victory-badge">关卡解锁</div>
+      <p id="victory-copy" class="victory-copy"></p>
       <div class="victory-actions">
-        <button id="btn-release-victory" class="primary-btn" type="button">好的 · 前往传送台 (E)</button>
+        <button id="btn-next-level" class="primary-btn" type="button" hidden>进入下一关 →</button>
+        <button id="btn-release-victory" class="primary-btn" type="button">继续漫游 (E)</button>
         <button id="btn-replay-victory" class="secondary-btn" type="button">重玩本关 (R)</button>
       </div>
     </div>
   </div>
 
-  <!-- Enlarged Interactive 3D Principle Briefing (Press I anytime; never auto-blocks level entry) -->
+  <!-- Chapter 1 Interactive Terminal Modal (L1 Statue Lock, L1 Hypotheses, L2 6-Path Lock) -->
+  <div id="ch1-modal" class="modal-backdrop" hidden>
+    <div class="modal-card ch1-terminal-card" role="dialog" aria-modal="true" aria-labelledby="ch1-modal-title">
+      <div class="modal-head">
+        <div>
+          <div id="ch1-modal-eyebrow" class="modal-eyebrow">A 区 · 回廊科研站终端</div>
+          <h2 id="ch1-modal-title" class="modal-title">主控密码锁</h2>
+        </div>
+        <button id="btn-close-ch1-modal" class="tool-btn" type="button">关闭 (Esc)</button>
+      </div>
+      <p id="ch1-modal-desc" class="ch1-modal-desc"></p>
+      <div id="ch1-modal-options" class="ch1-options-grid"></div>
+      <div id="ch1-modal-feedback" class="ch1-modal-feedback"></div>
+    </div>
+  </div>
+
+  <!-- Enlarged Interactive 3D Principle Briefing (Level 14; press I anytime) -->
   <div id="principle-modal" class="modal-backdrop" hidden>
     <div class="modal-card principle-card" role="dialog" aria-modal="true" aria-labelledby="principle-title">
       <div class="modal-head">
@@ -213,30 +248,28 @@
     </div>
   </div>
 
-  <!-- North Teleportation Pad Modal (Triggered when player walks through parted walls onto Z = 6.4 Teleporter) -->
+  <!-- Act Finale / Teleportation Pad Modal (L4 Rift Entry & L14 North Teleporter) -->
   <div id="teleporter-modal" class="modal-backdrop" hidden>
     <div class="modal-card teleporter-card" role="dialog" aria-modal="true" aria-labelledby="teleporter-title">
-      <div class="teleporter-badge">已抵达传送台 · 第 14 关完成</div>
-      <h2 id="teleporter-title" class="modal-title" style="margin-top:10px;">传送坐标锁定：第 15 关 · 圆环桥</h2>
-      <p class="teleporter-copy">
-        圆球从未被压扁——只是把伸出缝外的两端沿 <strong>第四维度 w</strong> 旋转收进亮缝，抵达对面底座后再重新放平。<br /><br />
-        下一关「第 15 关 · 圆环桥」将在 <strong>Phase 2</strong> 全量关卡阶段正式开放。
-      </p>
+      <div id="teleporter-badge" class="teleporter-badge">已抵达传送台 · 通关完成</div>
+      <h2 id="teleporter-title" class="modal-title" style="margin-top:10px;">跃入四维内部空间</h2>
+      <p id="teleporter-copy" class="teleporter-copy"></p>
       <div class="victory-actions">
-        <button id="btn-teleporter-replay" class="primary-btn" type="button">再玩一次第 14 关 (R)</button>
-        <button id="btn-teleporter-roadmap" class="secondary-btn" type="button">查看 18 关路线图</button>
-        <button id="btn-teleporter-stay" class="secondary-btn" type="button">留在圣殿漫游</button>
+        <button id="btn-teleporter-jump" class="primary-btn" type="button" hidden>试玩第 14 关 · 发丝裂缝 →</button>
+        <button id="btn-teleporter-replay" class="secondary-btn" type="button">重玩本关 (R)</button>
+        <button id="btn-teleporter-roadmap" class="secondary-btn" type="button">打开选关菜单</button>
+        <button id="btn-teleporter-stay" class="secondary-btn" type="button">留在当前空间</button>
       </div>
     </div>
   </div>
 
-  <!-- Esc Pause / Level Roadmap / Sensitivity Modal -->
+  <!-- Esc Pause / 18-Level Select Roadmap / Settings Modal -->
   <div id="pause-modal" class="modal-backdrop" hidden>
     <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="pause-title">
       <div class="modal-head">
         <div>
-          <div class="modal-eyebrow">BEYOND 3D · PHASE 1 垂直切片验收</div>
-          <h2 id="pause-title" class="modal-title">暂停与设置</h2>
+          <div id="pause-eyebrow" class="modal-eyebrow">BEYOND 3D · 第一幕《回廊》+ 第 14 关切片</div>
+          <h2 id="pause-title" class="modal-title">暂停、选关与设置</h2>
         </div>
         <button id="btn-close-pause" class="tool-btn" type="button">继续 (Esc)</button>
       </div>
@@ -252,15 +285,20 @@
           <input id="input-wheel-sens" type="range" min="0.4" max="2.2" step="0.1" value="1.0" />
           <span id="val-wheel-sens" class="mono">1.0×</span>
         </label>
+        <label class="setting-row setting-toggle-row">
+          <span>第 3 关 D9 降级方案</span>
+          <span class="toggle-desc">开启 <code>HOLONOMY_SIMPLE_FALLBACK</code>（跟随荧光箭头直觉通关）</span>
+          <input id="input-d9-fallback" type="checkbox" />
+        </label>
       </div>
 
       <div class="modal-actions">
-        <button id="btn-reset-level" class="secondary-btn" type="button">重置第 14 关 (R)</button>
-        <button id="btn-resume-level" class="primary-btn" type="button">返回圣殿</button>
+        <button id="btn-reset-level" class="secondary-btn" type="button">重置当前关卡 (R)</button>
+        <button id="btn-resume-level" class="primary-btn" type="button">返回游戏</button>
       </div>
 
       <div class="roadmap-section">
-        <div class="roadmap-title">两章 18 关全流程路线图（当前开放：Phase 1 第 14 关垂直切片）</div>
+        <div class="roadmap-title">全流程选关与路线图（点击标注 LIVE 的关卡可立即跳转）</div>
         <div id="roadmap-grid" class="roadmap-grid"></div>
       </div>
     </div>

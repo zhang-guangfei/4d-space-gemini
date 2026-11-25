@@ -32,6 +32,7 @@ export class InputController {
     this.cb = callbacks;
 
     this.keys = new Set();
+    this.mode = 'walk'; // 'prologue' | 'walk' | 'zero_g'
     this.paused = false;
     this.grabbed = false;
     this.pointerLocked = false;
@@ -40,6 +41,8 @@ export class InputController {
     this.dragMovedPx = 0;
     this.lastMouseX = 0;
     this.lastMouseY = 0;
+    this.eKeyDownAt = 0;
+    this.eUsedForRoll = false;
 
     this.yaw = -0.22; // Grand diagonal framing of 2x cathedral nave + Passing Orb + 13.6m Hairline Slit
     this.pitch = 0.04;
@@ -49,12 +52,24 @@ export class InputController {
     this._bindEvents();
   }
 
+  setMode(mode) {
+    this.mode = mode;
+    this.keys.clear();
+    this.eKeyDownAt = 0;
+    this.eUsedForRoll = false;
+    if (mode === 'prologue') {
+      this.releasePointerLock();
+    }
+  }
+
   setPaused(paused) {
     this.paused = Boolean(paused);
     if (this.paused) {
       this.keys.clear();
       this.dragging = false;
       this.activePointerId = null;
+      this.eKeyDownAt = 0;
+      this.eUsedForRoll = false;
       this.releasePointerLock();
     }
   }
@@ -73,7 +88,7 @@ export class InputController {
   }
 
   requestPointerLock() {
-    if (this.grabbed || this.paused) return;
+    if (this.grabbed || this.paused || this.mode === 'prologue') return;
     if (this.canvas && typeof this.canvas.requestPointerLock === 'function') {
       try {
         const res = this.canvas.requestPointerLock();
@@ -139,9 +154,14 @@ export class InputController {
       this.dragging = false;
       this.activePointerId = null;
 
-      // Single clean click (without dragging) in Walk Mode locks pointer for effortless FPS look
-      if (wasClick && !this.grabbed && !this.paused && !this.pointerLocked) {
-        this.requestPointerLock();
+      if (wasClick && !this.grabbed && !this.paused) {
+        if (this.mode !== 'prologue') {
+          this.cb.onPrimaryTap?.();
+        }
+        // Single clean click (without dragging) in Walk/Zero-G Mode locks pointer for effortless FPS look
+        if (!this.pointerLocked && this.mode !== 'prologue') {
+          this.requestPointerLock();
+        }
       }
     };
 
@@ -168,6 +188,8 @@ export class InputController {
         const rotYaw = -dx * 0.0085 * this.wheelSensitivity;
         const rotPitch = -dy * 0.0085 * this.wheelSensitivity;
         this.cb.onGrabDrag3D?.(rotYaw, rotPitch);
+      } else if (this.mode === 'zero_g') {
+        this.cb.onZeroGLook?.(dx * this.mouseSensitivity, -dy * this.mouseSensitivity);
       } else {
         this.yaw += dx * this.mouseSensitivity;
         this.pitch = clamp(this.pitch - dy * this.mouseSensitivity, -1.25, 1.25);
@@ -179,7 +201,7 @@ export class InputController {
     };
 
     this._onWheel = (e) => {
-      if (this.paused) return;
+      if (this.paused || this.mode === 'prologue') return;
       e.preventDefault();
       this.cb.onUserGesture?.();
 
@@ -199,15 +221,33 @@ export class InputController {
       if (this.paused) return;
       this.cb.onUserGesture?.();
 
+      if (this.mode === 'prologue') {
+        if (e.code === 'Space' && !e.repeat) {
+          e.preventDefault();
+          this.cb.onSkipPrologue?.();
+        }
+        return;
+      }
+
       if (e.code === 'Tab') {
         e.preventDefault();
         if (!e.repeat) this.cb.onToggleHonestView?.();
         return;
       }
 
-      if (e.code === 'KeyE' && !e.repeat) {
+      if (e.code === 'KeyE') {
         e.preventDefault();
-        this.cb.onInteract?.();
+        if (this.mode === 'zero_g') {
+          if (!e.repeat) {
+            this.eKeyDownAt = performance.now();
+            this.eUsedForRoll = false;
+            this.keys.add(e.code);
+          }
+          return;
+        }
+        if (!e.repeat) {
+          this.cb.onInteract?.();
+        }
         return;
       }
 
@@ -235,6 +275,11 @@ export class InputController {
         return;
       }
 
+      // Keyboard shortcut for waving left hand in Level 1 (in addition to Left Click)
+      if ((e.code === 'KeyG' || (e.code === 'Space' && this.mode === 'walk')) && !e.repeat) {
+        this.cb.onPrimaryTap?.();
+      }
+
       // Silent accessibility wheel aliases ([ / ] or PageUp / PageDown) for trackpad-less testing
       if (e.code === 'BracketRight' || e.code === 'PageUp') {
         e.preventDefault();
@@ -247,10 +292,23 @@ export class InputController {
         return;
       }
 
+      if (e.code === 'Space' && this.mode === 'zero_g') {
+        e.preventDefault();
+      }
       this.keys.add(e.code);
     };
 
     this._onKeyUp = (e) => {
+      if (e.code === 'KeyE' && this.mode === 'zero_g') {
+        const heldMs = performance.now() - this.eKeyDownAt;
+        this.keys.delete(e.code);
+        this.eKeyDownAt = 0;
+        if (!this.paused && !this.eUsedForRoll && heldMs < 260) {
+          this.cb.onInteract?.();
+        }
+        this.eUsedForRoll = false;
+        return;
+      }
       this.keys.delete(e.code);
     };
 
@@ -258,6 +316,8 @@ export class InputController {
       this.keys.clear();
       this.dragging = false;
       this.activePointerId = null;
+      this.eKeyDownAt = 0;
+      this.eUsedForRoll = false;
     };
 
     document.addEventListener('pointerlockchange', this._onPointerLockChange);
@@ -273,20 +333,39 @@ export class InputController {
   }
 
   /**
-   * Read per-frame continuous movement intent from WASD + Shift.
+   * Read per-frame continuous movement intent from WASD + Shift (+ Space/Ctrl/Q/hold-E in Zero-G).
    */
   sampleMoveVector(dtSec) {
-    if (this.paused) {
-      return { forward: 0, right: 0, sprint: false, dtSec };
+    if (this.paused || this.mode === 'prologue') {
+      return { forward: 0, right: 0, up: 0, roll: 0, sprint: false, dtSec };
     }
     let forward = 0;
     let right = 0;
+    let up = 0;
+    let roll = 0;
     if (this.keys.has('KeyW') || this.keys.has('ArrowUp')) forward += 1;
     if (this.keys.has('KeyS') || this.keys.has('ArrowDown')) forward -= 1;
     if (this.keys.has('KeyD') || this.keys.has('ArrowRight')) right += 1;
     if (this.keys.has('KeyA') || this.keys.has('ArrowLeft')) right -= 1;
+
+    if (this.mode === 'zero_g') {
+      if (this.keys.has('Space')) up += 1;
+      if (
+        this.keys.has('ControlLeft') ||
+        this.keys.has('ControlRight') ||
+        this.keys.has('KeyC')
+      ) {
+        up -= 1;
+      }
+      if (this.keys.has('KeyQ')) roll -= 1;
+      if (this.keys.has('KeyE') && this.eKeyDownAt > 0 && performance.now() - this.eKeyDownAt >= 200) {
+        this.eUsedForRoll = true;
+        roll += 1;
+      }
+    }
+
     const sprint = this.keys.has('ShiftLeft') || this.keys.has('ShiftRight');
-    return { forward, right, sprint, dtSec };
+    return { forward, right, up, roll, sprint, dtSec };
   }
 
   dispose() {
