@@ -392,8 +392,9 @@ export class ZeroGBoundaryNavigator {
   constructor(startCell = 'W+', options = {}) {
     this.startCell = startCell;
     this.startLocalPos3 = options.startLocalPos3 ?? [0, 0.08, -1.85];
-    this.portalRadius = options.portalRadius ?? 1.25; // 2.4m circular airlock radius with comfortable margin
-    this.wallMargin = options.wallMargin ?? 0.55;
+    this.startPitchRad = options.startPitchRad ?? 0;
+    this.portalRadius = options.portalRadius ?? 1.28; // 2.4m circular airlock aperture + gentle margin
+    this.wallMargin = options.wallMargin ?? 0.52;
     this.reset();
   }
 
@@ -406,6 +407,9 @@ export class ZeroGBoundaryNavigator {
       up4: [...b1],
       forward4: [...b2],
     };
+    if (Math.abs(this.startPitchRad) > EPSILON) {
+      this.rotateLook(0, this.startPitchRad, 0);
+    }
     this.vel4 = [0, 0, 0, 0];
     this.transitCount = 0;
     this.cellHistory = [this.startCell];
@@ -441,10 +445,10 @@ export class ZeroGBoundaryNavigator {
   }
 
   /**
-   * Move in 6-DOF Zero-G space with seamless circular-airlock portal transitions into
-   * neighboring tesseract boundary cells.
+   * Move in 6-DOF Zero-G space with tuned deliberate cruise speed, crisp inertial damping,
+   * and magnetic circular-airlock funneling so perpendicular room-to-room turns never snag.
    */
-  moveLocal(forwardAmt, rightAmt, upAmt, dtSec = 1 / 60, speed = 4.6) {
+  moveLocal(forwardAmt, rightAmt, upAmt, dtSec = 1 / 60, speed = 3.15) {
     const accel = [0, 0, 0, 0];
     for (let i = 0; i < 4; i += 1) {
       accel[i] =
@@ -453,10 +457,11 @@ export class ZeroGBoundaryNavigator {
         this.frame.up4[i] * upAmt;
     }
     const len = norm4(accel);
-    const targetVel = len > EPSILON ? accel.map((v) => (v / len) * speed) : [0, 0, 0, 0];
+    const thrustDir = len > EPSILON ? accel.map((v) => v / len) : [0, 0, 0, 0];
+    const targetVel = len > EPSILON ? thrustDir.map((v) => v * speed) : [0, 0, 0, 0];
 
-    // Smooth inertial Zero-G thruster feel (responsive yet weightless)
-    const damp = 1 - Math.exp(-7.5 * dtSec);
+    // Crisp weightless Zero-G thruster damping: stops cleanly inside a 6m room without accidental overshoot
+    const damp = 1 - Math.exp(-10.5 * dtSec);
     for (let i = 0; i < 4; i += 1) {
       this.vel4[i] += (targetVel[i] - this.vel4[i]) * damp;
       this.pos4[i] += this.vel4[i] * dtSec;
@@ -469,7 +474,7 @@ export class ZeroGBoundaryNavigator {
       this.pos4[i] -= dn * n[i];
     }
 
-    return this._resolveBoundaryOrTransit();
+    return this._resolveBoundaryOrTransit(thrustDir, dtSec);
   }
 
   /**
@@ -484,7 +489,7 @@ export class ZeroGBoundaryNavigator {
     const nFrom = CELL_NORMALS[fromId];
     const vTo = CELL_NORMALS[targetCellId];
 
-    // Place player just inside the target cell's entry face (+nFrom * (H - 0.35))
+    // Place player cleanly inside the target cell's entry face (+nFrom * (H - 0.50))
     const pDotV = dot4(this.pos4, vTo);
     const pTang = [
       this.pos4[0] - pDotV * vTo[0],
@@ -492,7 +497,7 @@ export class ZeroGBoundaryNavigator {
       this.pos4[2] - pDotV * vTo[2],
       this.pos4[3] - pDotV * vTo[3],
     ];
-    const entryDist = CELL_HALF_SIZE - 0.35;
+    const entryDist = CELL_HALF_SIZE - 0.50;
     this.pos4 = [
       pTang[0] + entryDist * nFrom[0],
       pTang[1] + entryDist * nFrom[1],
@@ -505,7 +510,7 @@ export class ZeroGBoundaryNavigator {
       up4: normalize4(transportTangent4(this.frame.up4, fromId, targetCellId)),
       forward4: normalize4(transportTangent4(this.frame.forward4, fromId, targetCellId)),
     };
-    this.vel4 = transportTangent4(this.vel4, fromId, targetCellId);
+    this.vel4 = transportTangent4(this.vel4, fromId, targetCellId).map((v) => v * 0.55);
     this.cellId = targetCellId;
     this.transitCount += 1;
     this.cellHistory.push(targetCellId);
@@ -513,7 +518,7 @@ export class ZeroGBoundaryNavigator {
     return { transited: true, from: fromId, to: targetCellId };
   }
 
-  _resolveBoundaryOrTransit() {
+  _resolveBoundaryOrTransit(thrustDir = [0, 0, 0, 0], dtSec = 1 / 60) {
     const H = CELL_HALF_SIZE;
     const limit = H - this.wallMargin;
     const neighbors = getNeighbors(this.cellId);
@@ -525,24 +530,43 @@ export class ZeroGBoundaryNavigator {
       const v = CELL_NORMALS[nId];
       const coord = dot4(this.pos4, v);
       if (coord > limit) {
-        // Compute radial distance from the center of this circular airlock face
-        let radialSq = 0;
-        for (let i = 0; i < 4; i += 1) {
-          const comp = this.pos4[i] - coord * v[i];
-          radialSq += comp * comp;
-        }
-        const radial = Math.sqrt(radialSq);
+        // Compute tangential offset & radial distance from the center of this circular airlock face
+        const tang = [
+          this.pos4[0] - coord * v[0],
+          this.pos4[1] - coord * v[1],
+          this.pos4[2] - coord * v[2],
+          this.pos4[3] - coord * v[3],
+        ];
+        const radial = norm4(tang);
+        const thrustToward = dot4(thrustDir, v);
         if (radial <= this.portalRadius) {
+          // Gently keep player centered inside the circular hatch neck when thrusting at a slight pitch angle
+          if (thrustToward > 0.35 && radial > this.portalRadius * 0.65) {
+            const centerStep = Math.min(radial - this.portalRadius * 0.65, 3.6 * thrustToward * dtSec);
+            const scale = centerStep / radial;
+            for (let i = 0; i < 4; i += 1) {
+              this.pos4[i] -= tang[i] * scale;
+            }
+          }
           // Inside airlock aperture! Allow smoothly flying all the way to H and crossing!
           if (coord >= H && coord - H > bestExceed) {
             bestExceed = coord - H;
             targetNeighbor = nId;
           }
         } else {
-          // Hit bulkhead outside the circular airlock frame -> clamp cleanly
+          // Hit bulkhead rim outside the circular airlock frame -> clamp along normal v
           const excess = coord - limit;
           for (let i = 0; i < 4; i += 1) {
             this.pos4[i] -= excess * v[i];
+          }
+          // Anti-wall-snag magnetic airlock funnel: if actively thrusting into this doorway face,
+          // smoothly glide tangentially toward the circular airlock center instead of dead-stopping!
+          if (thrustToward > 0.35 && radial > EPSILON) {
+            const funnelStep = Math.min(radial, 4.8 * thrustToward * dtSec);
+            const scale = funnelStep / radial;
+            for (let i = 0; i < 4; i += 1) {
+              this.pos4[i] -= tang[i] * scale;
+            }
           }
           const vDot = dot4(this.vel4, v);
           if (vDot > 0) {
@@ -559,7 +583,7 @@ export class ZeroGBoundaryNavigator {
       const nFrom = CELL_NORMALS[fromId];
       const vTo = CELL_NORMALS[targetNeighbor];
       const coord = dot4(this.pos4, vTo);
-      const excess = clamp(coord - H, 0.02, 0.8);
+      const excess = clamp(coord - H, 0.08, 0.65);
 
       const pTang = [
         this.pos4[0] - coord * vTo[0],
@@ -568,18 +592,20 @@ export class ZeroGBoundaryNavigator {
         this.pos4[3] - coord * vTo[3],
       ];
 
+      // Gently nudge arrival slightly inward from doorway skin + cushion momentum so player never overshoots!
+      const entryDist = Math.min(H - excess, H - 0.42);
       this.pos4 = [
-        pTang[0] + (H - excess) * nFrom[0],
-        pTang[1] + (H - excess) * nFrom[1],
-        pTang[2] + (H - excess) * nFrom[2],
-        pTang[3] + (H - excess) * nFrom[3],
+        pTang[0] + entryDist * nFrom[0],
+        pTang[1] + entryDist * nFrom[1],
+        pTang[2] + entryDist * nFrom[2],
+        pTang[3] + entryDist * nFrom[3],
       ];
       this.frame = {
         right4: normalize4(transportTangent4(this.frame.right4, fromId, targetNeighbor)),
         up4: normalize4(transportTangent4(this.frame.up4, fromId, targetNeighbor)),
         forward4: normalize4(transportTangent4(this.frame.forward4, fromId, targetNeighbor)),
       };
-      this.vel4 = transportTangent4(this.vel4, fromId, targetNeighbor);
+      this.vel4 = transportTangent4(this.vel4, fromId, targetNeighbor).map((val) => val * 0.55);
       this.cellId = targetNeighbor;
       this.transitCount += 1;
       this.cellHistory.push(targetNeighbor);
@@ -819,8 +845,8 @@ export class Level2AntipodalState {
     return this.nav.cellId;
   }
 
-  stepMove(forward, right, up, dtSec) {
-    const res = this.nav.moveLocal(forward, right, up, dtSec);
+  stepMove(forward, right, up, dtSec, speed) {
+    const res = this.nav.moveLocal(forward, right, up, dtSec, speed);
     if (res.transited) {
       this._onCellEnter(res.to);
     }
@@ -897,7 +923,11 @@ export const HOLONOMY_SIMPLE_FALLBACK_DEFAULT = false;
 
 export class Level3HolonomyState {
   constructor(options = {}) {
-    this.nav = new ZeroGBoundaryNavigator('W+');
+    // Spawn framed cleanly to reveal the blazing Golden Shared 1D Edge, ↑ 上 stencils, & Resonance Lock at entry!
+    this.nav = new ZeroGBoundaryNavigator('W+', {
+      startLocalPos3: [0, -0.34, -2.18],
+      startPitchRad: 0.21,
+    });
     this.holonomyFallback = Boolean(options.holonomyFallback ?? HOLONOMY_SIMPLE_FALLBACK_DEFAULT);
     this.reset();
   }
@@ -958,8 +988,8 @@ export class Level3HolonomyState {
     return dot4(this.gyro4, [0, -1, 0, 0]) > 0.98;
   }
 
-  stepMove(forward, right, up, dtSec) {
-    const res = this.nav.moveLocal(forward, right, up, dtSec);
+  stepMove(forward, right, up, dtSec, speed) {
+    const res = this.nav.moveLocal(forward, right, up, dtSec, speed);
     if (res.transited) {
       this._onTransit(res.from, res.to);
     }
@@ -995,7 +1025,7 @@ export class Level3HolonomyState {
   canInteractLock() {
     if (this.cellId !== 'W+' || this.completed) return false;
     const [x, y, z] = this.nav.getLocalPos3();
-    return Math.hypot(x, y, z) <= 2.4;
+    return Math.hypot(x, y, z) <= 2.95;
   }
 
   tryEmbedGyroInLock() {
@@ -1044,7 +1074,8 @@ export const RECOMMENDED_HAMILTONIAN_CYCLE = Object.freeze([
 
 export class Level4HamiltonianState {
   constructor() {
-    this.nav = new ZeroGBoundaryNavigator('W+', { startLocalPos3: [0, 0.24, -2.38] });
+    // Elevated spawn above suspended Mercury Rift Sphere so ★ X+ airlock plaque stays 100% unobstructed!
+    this.nav = new ZeroGBoundaryNavigator('W+', { startLocalPos3: [0, 0.48, -2.36] });
     this.reset();
   }
 
@@ -1089,8 +1120,8 @@ export class Level4HamiltonianState {
     return !this.riftSphereAwakened && this.visited.size === 8 && this.cellId === 'W-';
   }
 
-  stepMove(forward, right, up, dtSec) {
-    const res = this.nav.moveLocal(forward, right, up, dtSec);
+  stepMove(forward, right, up, dtSec, speed) {
+    const res = this.nav.moveLocal(forward, right, up, dtSec, speed);
     let event = null;
     if (res.transited) {
       event = this._onCellEntered(res.to);

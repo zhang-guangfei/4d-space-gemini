@@ -8,7 +8,8 @@
     "test": "node --test tests/*.test.mjs",
     "check": "node scripts/check.mjs",
     "build:site": "node scripts/build-site.mjs",
-    "serve": "node scripts/serve.mjs"
+    "serve": "node scripts/serve.mjs",
+    "audit:playtest": "python3 scripts/playtest-audit.py"
   },
   "dependencies": {
     "babylonjs": "^9.37.2"

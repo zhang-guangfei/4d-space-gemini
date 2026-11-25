@@ -537,7 +537,7 @@ function boot() {
       },
       requestHint: () => {
         if (levelId === 0) return;
-        const res = hints.requestHint();
+        const res = hints.requestNextHint();
         const tierNames = ['现象提醒', '思考方向', '明确解法'];
         voice.speak(res.speaker, res.text, {
           tierLabel: `${res.tier}级·${tierNames[Math.min(res.tier - 1, 2)]}`,
@@ -654,7 +654,7 @@ function boot() {
         syncPauseState();
         playOpening();
       },
-      stepFrame: (dtSec) => {
+      stepFrame: (dtSec, shouldRender = true) => {
         if (!paused && !ch1ModalOpen && !teleporterOpen) {
           if (levelId === 0) {
             const p = state.update(dtSec);
@@ -696,7 +696,8 @@ function boot() {
             if (mv.roll !== 0) {
               state.nav.rotateLook(0, 0, mv.roll * 1.65 * dtSec);
             }
-            const res = state.stepMove(mv.forward, mv.right, mv.up, dtSec);
+            const speed = mv.sprint ? 4.8 : 3.15;
+            const res = state.stepMove(mv.forward, mv.right, mv.up, dtSec, speed);
             if (res.transited) {
               handleTransitSideEffects(res);
             }
@@ -927,7 +928,9 @@ function boot() {
           });
         }
 
-        scene.render();
+        if (shouldRender) {
+          scene.render();
+        }
       },
       actions: {
         skip: () => runtime.skip(),
@@ -1367,7 +1370,7 @@ function boot() {
       topologyMap,
       hud,
       voice,
-      stepFrame: (dtSec = 1 / 24) => activeRuntime?.stepFrame(dtSec),
+      stepFrame: (dtSec = 1 / 24, shouldRender = true) => activeRuntime?.stepFrame(dtSec, shouldRender),
       loadLevel,
       actions: activeRuntime?.actions || {},
     };

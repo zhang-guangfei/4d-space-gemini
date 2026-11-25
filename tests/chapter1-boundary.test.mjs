@@ -311,3 +311,28 @@ test('ZeroGBoundaryNavigator continuous movement crosses circular airlock smooth
   p.skip();
   assert.equal(p.completed, true);
 });
+
+test('Zero-G anti-wall-snag airlock funnel: continuous W -> Space -> S flight completes W+ -> X+ -> Y+ -> W+ (+90°)', () => {
+  const s = new Level3HolonomyState();
+  // Step 1: Fly forward (+W) from W+ into X+
+  for (let i = 0; i < 160 && s.cellId === 'W+'; i += 1) {
+    s.stepMove(1, 0, 0, 1 / 60);
+  }
+  assert.equal(s.cellId, 'X+');
+
+  // Step 2: Fly up (+Space) from X+ into Y+
+  for (let i = 0; i < 160 && s.cellId === 'X+'; i += 1) {
+    s.stepMove(0, 0, 1, 1 / 60);
+  }
+  assert.equal(s.cellId, 'Y+');
+
+  // Step 3: Fly backward (-W / KeyS) toward W+ from Y+ entry corner (relies on magnetic airlock funnel!)
+  for (let i = 0; i < 200 && s.cellId === 'Y+'; i += 1) {
+    s.stepMove(-1, 0, 0, 1 / 60);
+  }
+  assert.equal(s.cellId, 'W+', 'Player must smoothly funnel back into W+ without getting snagged on wall rim');
+  assert.equal(s.getGyroAngleInWPlusDeg(), 90);
+  assert.equal(s.isGyroAlignedForLock(), true);
+  assert.equal(s.tryEmbedGyroInLock().unlocked, true);
+});
+

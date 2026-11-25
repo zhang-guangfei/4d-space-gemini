@@ -753,12 +753,18 @@ function buildSixAirlockCellMesh(scene, namePrefix, sharedMats, options = {}) {
     glowRing.parent = faceNode;
     rings[fd.axis] = glowRing;
 
-    // Backlit doorway destination plaque above the circular airlock (default CreatePlane -Z normal faces strictly inward!)
+    // Backlit doorway destination plaque (center cell) OR deep atmospheric corridor disc (neighbor far hatches)
     if (!options.minimalNeighbor) {
       const plaque = B.MeshBuilder.CreatePlane(`${namePrefix}_plq_${fd.axis}`, { width: 1.32, height: 0.48 }, scene);
       plaque.position.set(0, 1.62, -0.10);
       plaque.parent = faceNode;
       plaques[fd.axis] = plaque;
+    } else if (sharedMats.farDepthMat) {
+      const depthDisc = B.MeshBuilder.CreateDisc(`${namePrefix}_depth_${fd.axis}`, { radius: 1.24, tessellation: 28 }, scene);
+      depthDisc.position.set(0, 0, 0.08); // Behind neighbor outer bulkhead, facing strictly inward (-Z)!
+      depthDisc.material = sharedMats.farDepthMat;
+      depthDisc.parent = faceNode;
+      plaques[fd.axis] = depthDisc; // Store depth discs on neighbor shells keyed by localAxis
     }
   }
 
@@ -787,6 +793,40 @@ function buildSixAirlockCellMesh(scene, namePrefix, sharedMats, options = {}) {
 }
 
 /**
+ * Procedural deep-corridor atmospheric depth gradient disc texture for far neighbor hatches,
+ * giving clean recursive aerospace station depth instead of flat grey clearColor sky.
+ */
+function createFarTunnelMaterial(scene) {
+  const B = globalThis.BABYLON;
+  const tex = new B.DynamicTexture('rig_far_tunnel_tex', { width: 256, height: 256 }, scene, true);
+  const ctx = tex.getContext();
+  const grad = ctx.createRadialGradient(128, 128, 12, 128, 128, 126);
+  grad.addColorStop(0.0, '#1B283A');
+  grad.addColorStop(0.38, '#41556E');
+  grad.addColorStop(0.72, '#8D9EB2');
+  grad.addColorStop(1.0, '#C5D0DC');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 256, 256);
+
+  // Subtle recursive circular hatch rings receding into atmospheric depth
+  for (const [r, alpha] of [[92, 0.35], [62, 0.32], [36, 0.28], [18, 0.25]]) {
+    ctx.strokeStyle = `rgba(220, 236, 248, ${alpha})`;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(128, 128, r, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  tex.update();
+
+  const mat = new B.StandardMaterial('rig_far_tunnel_mat', scene);
+  mat.diffuseTexture = tex;
+  mat.emissiveTexture = tex;
+  mat.disableLighting = true;
+  mat.backFaceCulling = true;
+  return mat;
+}
+
+/**
  * Shared manager that keeps the current cell at (0,0,0) and ALL 6 seamless neighbor cells
  * transformed around it via exact 4D parallel transport (`computeNeighborTransformInCell`).
  */
@@ -803,6 +843,7 @@ class SeamlessTesseractChamberRig {
     this.steelMat.metallic = 0.68;
     this.steelMat.roughness = 0.32;
 
+    this.farDepthMat = createFarTunnelMaterial(scene);
     this.defaultRingMat = makeEmissiveMat(scene, 'rig_default_ring', PALETTE.accent.cyanW0, 0.9);
     this.cellRingMats = {};
     this.cellPlaqueMats = {};
@@ -822,6 +863,7 @@ class SeamlessTesseractChamberRig {
       deckMat: this.base.deckMat,
       steelMat: this.steelMat,
       defaultRingMat: this.defaultRingMat,
+      farDepthMat: this.farDepthMat,
     };
 
     // Center active cell (full detail + plaques)
@@ -836,13 +878,29 @@ class SeamlessTesseractChamberRig {
       this.neighborShells.push(shell);
     }
 
-    // Per-cell prop containers (attached to center OR the matching visible neighbor shell!)
+    // Per-cell prop containers + subtle color-coded architectural corner identity strips
     this.cellPropRoots = {};
     for (const id of CELL_IDS) {
       const node = new this.B.TransformNode(`cell_props_${id}`, scene);
       node.parent = this.root;
       node.setEnabled(false);
       this.cellPropRoots[id] = node;
+
+      // Subtle vertical identity accent light rails along the 4 vertical chamber corners
+      const stripMat = makeEmissiveMat(scene, `cell_id_strip_${id}`, CELL_COLORS[id], 0.72);
+      const cOff = CELL_HALF_SIZE - 0.22;
+      for (const sx of [-1, 1]) {
+        for (const sz of [-1, 1]) {
+          const rail = this.B.MeshBuilder.CreateBox(
+            `cell_id_rail_${id}_${sx}_${sz}`,
+            { width: 0.045, height: 3.4, depth: 0.045 },
+            scene
+          );
+          rail.position.set(sx * cOff, 0, sz * cOff);
+          rail.material = stripMat;
+          rail.parent = node;
+        }
+      }
     }
 
     this.lastRenderedCell = null;
@@ -887,11 +945,15 @@ class SeamlessTesseractChamberRig {
       shell.root.position.copyFrom(tf.position);
       shell.root.rotationQuaternion = tf.rotationQuaternion.clone();
 
-      // Tint neighbor's inner rings by its identity color
+      // Tint neighbor's inner rings & toggle far-corridor depth discs (hide ONLY the connecting doorway!)
       const nDoors = getCellDoorways(nId);
       for (const nd of nDoors) {
         const nr = shell.rings[nd.localAxis];
         if (nr) nr.material = this.cellRingMats[nd.targetCell];
+        const depthDisc = shell.plaques[nd.localAxis];
+        if (depthDisc) {
+          depthDisc.setEnabled(nd.targetCell !== currentCellId);
+        }
       }
 
       const nProps = this.cellPropRoots[nId];
@@ -1168,7 +1230,12 @@ export class Level3HolonomyScene {
     brassMat.metallic = 0.88;
     brassMat.roughness = 0.22;
 
-    const outerRing = B.MeshBuilder.CreateTorus('l3_gyro_outer', { diameter: 0.28, thickness: 0.016, tessellation: 28 }, this.scene);
+    const dialBack = B.MeshBuilder.CreateDisc('l3_gyro_dial_back', { radius: 0.132, tessellation: 28 }, this.scene);
+    dialBack.position.set(0, 0, 0.035);
+    dialBack.material = createGhostMaterial(this.scene, 'l3_gyro_back_mat', '#162231', 0.34);
+    dialBack.parent = this.gyroAnchor;
+
+    const outerRing = B.MeshBuilder.CreateTorus('l3_gyro_outer', { diameter: 0.28, thickness: 0.017, tessellation: 32 }, this.scene);
     outerRing.rotation.x = Math.PI * 0.5;
     outerRing.material = brassMat;
     outerRing.parent = this.gyroAnchor;
@@ -1177,20 +1244,24 @@ export class Level3HolonomyScene {
     innerRing.material = brassMat;
     innerRing.parent = this.gyroAnchor;
 
+    const hub = B.MeshBuilder.CreateSphere('l3_gyro_hub', { diameter: 0.036, segments: 12 }, this.scene);
+    hub.material = brassMat;
+    hub.parent = this.gyroAnchor;
+
     // Rotating 4D-transported locked needle node (local +Y = needle tip!)
     this.gyroNeedlePivot = new B.TransformNode('l3_gyro_needle_pivot', this.scene);
     this.gyroNeedlePivot.parent = this.gyroAnchor;
 
-    this.needleMat = makeEmissiveMat(this.scene, 'l3_needle_mat', PALETTE.accent.cyanW0, 1.3);
-    this.needleAlignedMat = makeEmissiveMat(this.scene, 'l3_needle_ok_mat', PALETTE.accent.emerald, 1.4);
+    this.needleMat = makeEmissiveMat(this.scene, 'l3_needle_mat', PALETTE.accent.cyanW0, 1.35);
+    this.needleAlignedMat = makeEmissiveMat(this.scene, 'l3_needle_ok_mat', PALETTE.accent.emerald, 1.45);
 
-    const shaft = B.MeshBuilder.CreateCylinder('l3_needle_shaft', { diameter: 0.018, height: 0.16, tessellation: 10 }, this.scene);
-    shaft.position.y = 0.04;
+    const shaft = B.MeshBuilder.CreateCylinder('l3_needle_shaft', { diameter: 0.022, height: 0.18, tessellation: 12 }, this.scene);
+    shaft.position.y = 0.025;
     shaft.material = this.needleMat;
     shaft.parent = this.gyroNeedlePivot;
     this.needleShaft = shaft;
 
-    const tip = B.MeshBuilder.CreateCylinder('l3_needle_tip', { diameterTop: 0, diameterBottom: 0.056, height: 0.075, tessellation: 10 }, this.scene);
+    const tip = B.MeshBuilder.CreateCylinder('l3_needle_tip', { diameterTop: 0, diameterBottom: 0.064, height: 0.082, tessellation: 12 }, this.scene);
     tip.position.y = 0.145;
     tip.material = this.needleMat;
     tip.parent = this.gyroNeedlePivot;
@@ -1199,10 +1270,15 @@ export class Level3HolonomyScene {
     // Target reference needle (shows where +Y "指天" points in W+!)
     this.targetNeedlePivot = new B.TransformNode('l3_gyro_target_pivot', this.scene);
     this.targetNeedlePivot.parent = this.gyroAnchor;
-    const tShaft = B.MeshBuilder.CreateCylinder('l3_tneedle', { diameter: 0.01, height: 0.15, tessellation: 8 }, this.scene);
-    tShaft.position.y = 0.075;
-    tShaft.material = createGhostMaterial(this.scene, 'l3_tneedle_mat', PALETTE.accent.goldWPos, 0.34);
+    const tMat = makeEmissiveMat(this.scene, 'l3_tneedle_mat', PALETTE.accent.goldWPos, 1.0);
+    const tShaft = B.MeshBuilder.CreateCylinder('l3_tneedle', { diameter: 0.010, height: 0.13, tessellation: 8 }, this.scene);
+    tShaft.position.y = 0.065;
+    tShaft.material = tMat;
     tShaft.parent = this.targetNeedlePivot;
+    const tTip = B.MeshBuilder.CreateCylinder('l3_tneedle_tip', { diameterTop: 0, diameterBottom: 0.036, height: 0.044, tessellation: 8 }, this.scene);
+    tTip.position.y = 0.145;
+    tTip.material = tMat;
+    tTip.parent = this.targetNeedlePivot;
 
     for (const m of this.gyroAnchor.getChildMeshes()) {
       m.renderingGroupId = RENDER_GROUPS.CHARACTERS_AND_WIREFRAMES;
@@ -1359,11 +1435,12 @@ export class Level4HamiltonianScene {
     const B = this.B;
     const parent = this.rig.cellPropRoots['W+'];
     this.riftRoot = new B.TransformNode('l4_mercury_rift', this.scene);
+    this.riftRoot.position.set(0, -0.56, 0);
     this.riftRoot.parent = parent;
 
-    // Monumental liquid-mercury mirror sphere (hero-framed at W+ center)
+    // Monumental liquid-mercury mirror sphere (suspended slightly low when dormant so ★ X+ airlock is completely visible!)
     this.mercuryMat = createMercuryRiftPBR(this.scene, 'l4_mercury_mat');
-    this.riftSphere = B.MeshBuilder.CreateSphere('l4_rift_sphere', { diameter: 1.85, segments: 40 }, this.scene);
+    this.riftSphere = B.MeshBuilder.CreateSphere('l4_rift_sphere', { diameter: 1.56, segments: 40 }, this.scene);
     this.riftSphere.material = this.mercuryMat;
     this.riftSphere.renderingGroupId = RENDER_GROUPS.PUZZLE_AND_GHOSTS;
     this.riftSphere.parent = this.riftRoot;
@@ -1374,8 +1451,8 @@ export class Level4HamiltonianScene {
     this.riftAwakeRingMat = makeEmissiveMat(this.scene, 'l4_rift_ring_awake', PALETTE.accent.cyanW0, 1.35);
     this.riftDormantRingMat = ringMat;
 
-    [2.08, 2.24, 2.40].forEach((diam, idx) => {
-      const r = B.MeshBuilder.CreateTorus(`l4_rring_${idx}`, { diameter: diam, thickness: 0.042, tessellation: 44 }, this.scene);
+    [1.76, 1.90, 2.04].forEach((diam, idx) => {
+      const r = B.MeshBuilder.CreateTorus(`l4_rring_${idx}`, { diameter: diam, thickness: 0.04, tessellation: 44 }, this.scene);
       r.material = ringMat;
       r.parent = this.riftRoot;
       this.riftRings.push(r);
@@ -1410,17 +1487,21 @@ export class Level4HamiltonianScene {
       }
     }
 
-    // Animate Liquid-Mercury Rift Mirror Sphere
+    // Animate Liquid-Mercury Rift Mirror Sphere (rises to center & expands to full ~2m portal when awakened!)
     const awake = state.riftSphereAwakened;
+    const targetY = awake ? 0.05 : -0.56;
+    this.riftRoot.position.y += (targetY - this.riftRoot.position.y) * Math.min(1, dtSec * 4.5);
+
     const speed = awake ? 1.8 : 0.25;
     this.riftRings[0].rotation.set(0.55 + this.time * speed, this.time * speed * 0.7, 0.2);
     this.riftRings[1].rotation.set(-0.45 - this.time * speed * 0.8, 0.3, 0.75 + this.time * speed);
     this.riftRings[2].rotation.set(1.05, 0.2 + this.time * speed * 1.1, -0.35 - this.time * speed * 0.6);
 
-    const pulse = awake ? 1.0 + Math.sin(this.time * 4.2) * 0.04 : 1.0;
+    const baseScale = awake ? 1.24 : 1.0;
+    const pulse = awake ? baseScale + Math.sin(this.time * 4.2) * 0.045 : 1.0;
     this.riftSphere.scaling.setAll(pulse);
     this.mercuryMat.emissiveColor = awake
-      ? this.B.Color3.FromHexString(PALETTE.accent.cyanW0).scale(0.26)
+      ? this.B.Color3.FromHexString(PALETTE.accent.cyanW0).scale(0.28)
       : new this.B.Color3(0.03, 0.08, 0.12);
 
     for (const r of this.riftRings) {

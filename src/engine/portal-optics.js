@@ -315,13 +315,18 @@ export function buildSculptedAstronautStatue(scene, name, options = {}) {
   arrowMat.emissiveColor = B.Color3.FromHexString(arrowHex).scale(1.1);
   arrowMat.disableLighting = true;
 
-  // Pedestal base
-  const plinth = B.MeshBuilder.CreateCylinder(`${name}_base`, { diameter: 1.45, height: 0.55, tessellation: 24 }, scene);
+  // Pedestal base + glowing calibrated compass ring
+  const plinth = B.MeshBuilder.CreateCylinder(`${name}_base`, { diameter: 1.48, height: 0.55, tessellation: 28 }, scene);
   plinth.position.y = 0.275;
   plinth.material = plinthMat;
   plinth.parent = root;
 
-  // Rotating upper statue group (rotates clockwise 90° per room!)
+  const plinthRing = B.MeshBuilder.CreateTorus(`${name}_pring`, { diameter: 1.52, thickness: 0.045, tessellation: 32 }, scene);
+  plinthRing.position.y = 0.54;
+  plinthRing.material = arrowMat;
+  plinthRing.parent = root;
+
+  // Rotating upper statue group (rotates 90° per room!)
   const figure = new B.TransformNode(`${name}_fig`, scene);
   figure.position.y = 0.55;
   figure.parent = root;
@@ -338,46 +343,63 @@ export function buildSculptedAstronautStatue(scene, name, options = {}) {
   arrowTip.material = arrowMat;
   arrowTip.parent = figure;
 
-  // Statue body (tall monumental 2.15m astronaut)
-  const legs = B.MeshBuilder.CreateCylinder(`${name}_legs`, { diameterTop: 0.56, diameterBottom: 0.64, height: 0.92, tessellation: 16 }, scene);
-  legs.position.y = 0.48;
+  // Statue body (sculpted 2.15m aerospace monument)
+  const legs = B.MeshBuilder.CreateCylinder(`${name}_legs`, { diameterTop: 0.54, diameterBottom: 0.64, height: 0.90, tessellation: 20 }, scene);
+  legs.position.y = 0.47;
   legs.material = statueMat;
   legs.parent = figure;
 
-  const chest = B.MeshBuilder.CreateBox(`${name}_chest`, { width: 0.76, height: 0.76, depth: 0.44 }, scene);
+  const belt = B.MeshBuilder.CreateTorus(`${name}_belt`, { diameter: 0.60, thickness: 0.09, tessellation: 22 }, scene);
+  belt.position.y = 0.92;
+  belt.material = plinthMat;
+  belt.parent = figure;
+
+  const chest = B.MeshBuilder.CreateBox(`${name}_chest`, { width: 0.72, height: 0.70, depth: 0.42 }, scene);
   chest.position.y = 1.28;
   chest.material = statueMat;
   chest.parent = figure;
 
+  // Sculpted shoulder pauldrons & neck collar ring
+  for (const s of [-1, 1]) {
+    const sh = B.MeshBuilder.CreateSphere(`${name}_sh_${s}`, { diameter: 0.32, segments: 14 }, scene);
+    sh.position.set(s * 0.42, 1.54, 0);
+    sh.material = statueMat;
+    sh.parent = figure;
+  }
+  const collar = B.MeshBuilder.CreateTorus(`${name}_collar`, { diameter: 0.44, thickness: 0.08, tessellation: 22 }, scene);
+  collar.position.y = 1.66;
+  collar.material = plinthMat;
+  collar.parent = figure;
+
   // Glowing front chest diamond emblem (always on +Z front!)
-  const chestBadge = B.MeshBuilder.CreateBox(`${name}_badge`, { width: 0.26, height: 0.26, depth: 0.08 }, scene);
-  chestBadge.position.set(0, 1.32, 0.24);
+  const chestBadge = B.MeshBuilder.CreateBox(`${name}_badge`, { width: 0.24, height: 0.24, depth: 0.08 }, scene);
+  chestBadge.position.set(0, 1.32, 0.23);
   chestBadge.rotation.z = Math.PI / 4;
   chestBadge.material = arrowMat;
   chestBadge.parent = figure;
 
   // Backpack strictly on BACK (-Z)
-  const pack = B.MeshBuilder.CreateBox(`${name}_back`, { width: 0.54, height: 0.64, depth: 0.28 }, scene);
+  const pack = B.MeshBuilder.CreateBox(`${name}_back`, { width: 0.52, height: 0.62, depth: 0.28 }, scene);
   pack.position.set(0, 1.3, -0.34);
   pack.material = plinthMat;
   pack.parent = figure;
 
   // Pointing forward forearm (+Z) so silhouette immediately reveals facing direction!
-  const arm = B.MeshBuilder.CreateCylinder(`${name}_arm`, { diameter: 0.18, height: 0.76, tessellation: 12 }, scene);
-  arm.rotation.x = Math.PI * 0.42;
-  arm.position.set(0.46, 1.38, 0.34);
+  const arm = B.MeshBuilder.CreateCylinder(`${name}_arm`, { diameter: 0.16, height: 0.74, tessellation: 14 }, scene);
+  arm.rotation.x = Math.PI * 0.44;
+  arm.position.set(0.45, 1.40, 0.34);
   arm.material = statueMat;
   arm.parent = figure;
 
   // Helmet + unmistakable protruding front visor (+Z)
-  const helmet = B.MeshBuilder.CreateSphere(`${name}_helm`, { diameter: 0.48, segments: 18 }, scene);
-  helmet.position.y = 1.88;
+  const helmet = B.MeshBuilder.CreateSphere(`${name}_helm`, { diameter: 0.48, segments: 20 }, scene);
+  helmet.position.y = 1.90;
   helmet.material = statueMat;
   helmet.parent = figure;
 
-  const visor = B.MeshBuilder.CreateSphere(`${name}_vis`, { diameter: 0.4, segments: 16 }, scene);
+  const visor = B.MeshBuilder.CreateSphere(`${name}_vis`, { diameter: 0.40, segments: 16 }, scene);
   visor.scaling.set(0.95, 0.72, 0.72);
-  visor.position.set(0, 1.88, 0.14);
+  visor.position.set(0, 1.90, 0.14);
   visor.material = visorMat;
   visor.parent = figure;
 
