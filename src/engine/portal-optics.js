@@ -294,114 +294,176 @@ export function buildSculptedAstronautStatue(scene, name, options = {}) {
   const root = new B.TransformNode(name, scene);
 
   const statueMat = new B.PBRMaterial(`${name}_mat`, scene);
-  statueMat.albedoColor = B.Color3.FromHexString(isCopper ? '#C87D4B' : '#F3F0E8');
-  statueMat.metallic = isCopper ? 0.78 : 0.15;
-  statueMat.roughness = isCopper ? 0.28 : 0.38;
+  statueMat.albedoColor = B.Color3.FromHexString(isCopper ? '#C9824E' : '#EAE6DD');
+  statueMat.metallic = isCopper ? 0.86 : 0.22;
+  statueMat.roughness = isCopper ? 0.24 : 0.32;
+  statueMat.clearCoat.isEnabled = true;
+  statueMat.clearCoat.intensity = isCopper ? 0.45 : 0.32;
+  statueMat.clearCoat.roughness = 0.2;
+
+  const trimMat = new B.PBRMaterial(`${name}_trim`, scene);
+  trimMat.albedoColor = B.Color3.FromHexString(isCopper ? '#4F5A6A' : '#6F7D90');
+  trimMat.metallic = 0.78;
+  trimMat.roughness = 0.28;
 
   const plinthMat = new B.PBRMaterial(`${name}_plinth`, scene);
-  plinthMat.albedoColor = B.Color3.FromHexString('#9AA5B4');
-  plinthMat.metallic = 0.42;
-  plinthMat.roughness = 0.38;
+  plinthMat.albedoColor = B.Color3.FromHexString('#364150');
+  plinthMat.metallic = 0.72;
+  plinthMat.roughness = 0.34;
 
   const visorMat = new B.PBRMaterial(`${name}_visor`, scene);
-  visorMat.albedoColor = B.Color3.FromHexString(isCopper ? '#182433' : '#2C3C4E');
-  visorMat.metallic = 0.95;
-  visorMat.roughness = 0.06;
-  visorMat.emissiveColor = B.Color3.FromHexString(isCopper ? '#4DE6D3' : '#F7C346').scale(0.32);
+  visorMat.albedoColor = B.Color3.FromHexString(isCopper ? '#142030' : '#1E2C3E');
+  visorMat.metallic = 0.96;
+  visorMat.roughness = 0.05;
+  visorMat.clearCoat.isEnabled = true;
+  visorMat.clearCoat.intensity = 1.0;
+  visorMat.emissiveColor = B.Color3.FromHexString(isCopper ? '#4DE6D3' : '#F7C346').scale(0.45);
 
   const arrowMat = new B.StandardMaterial(`${name}_arrow`, scene);
   const arrowHex = isCopper ? PALETTE.accent.goldWPos : PALETTE.accent.cyanW0;
   arrowMat.diffuseColor = B.Color3.FromHexString(arrowHex);
-  arrowMat.emissiveColor = B.Color3.FromHexString(arrowHex).scale(1.1);
+  arrowMat.emissiveColor = B.Color3.FromHexString(arrowHex).scale(1.3);
   arrowMat.disableLighting = true;
 
-  // Pedestal base + glowing calibrated compass ring
-  const plinth = B.MeshBuilder.CreateCylinder(`${name}_base`, { diameter: 1.48, height: 0.55, tessellation: 28 }, scene);
-  plinth.position.y = 0.275;
-  plinth.material = plinthMat;
-  plinth.parent = root;
+  // Multi-tiered rotary museum plinth + glowing calibrated compass ring
+  const plinthBot = B.MeshBuilder.CreateCylinder(`${name}_base_b`, { diameterTop: 1.54, diameterBottom: 1.66, height: 0.26, tessellation: 32 }, scene);
+  plinthBot.position.y = 0.13;
+  plinthBot.material = plinthMat;
+  plinthBot.parent = root;
 
-  const plinthRing = B.MeshBuilder.CreateTorus(`${name}_pring`, { diameter: 1.52, thickness: 0.045, tessellation: 32 }, scene);
-  plinthRing.position.y = 0.54;
+  const plinthTop = B.MeshBuilder.CreateCylinder(`${name}_base_t`, { diameterTop: 1.38, diameterBottom: 1.46, height: 0.30, tessellation: 32 }, scene);
+  plinthTop.position.y = 0.41;
+  plinthTop.material = trimMat;
+  plinthTop.parent = root;
+
+  const plinthRing = B.MeshBuilder.CreateTorus(`${name}_pring`, { diameter: 1.42, thickness: 0.04, tessellation: 36 }, scene);
+  plinthRing.position.y = 0.56;
   plinthRing.material = arrowMat;
   plinthRing.parent = root;
 
-  // Rotating upper statue group (rotates 90° per room!)
+  // Rotating upper statue group (rotates 90° clockwise per room!)
   const figure = new B.TransformNode(`${name}_fig`, scene);
-  figure.position.y = 0.55;
+  figure.position.y = 0.56;
   figure.parent = root;
 
-  // Glowing front-facing directional pointer chevron on pedestal top (+Z = statue front!)
-  const arrowShaft = B.MeshBuilder.CreateBox(`${name}_arr_shaft`, { width: 0.16, height: 0.04, depth: 0.72 }, scene);
-  arrowShaft.position.set(0, 0.04, 0.36);
+  // Crisp front-facing directional pointer chevron embedded on turntable top (+Z = statue front!)
+  const arrowShaft = B.MeshBuilder.CreateBox(`${name}_arr_shaft`, { width: 0.14, height: 0.036, depth: 0.56 }, scene);
+  arrowShaft.position.set(0, 0.03, 0.28);
   arrowShaft.material = arrowMat;
   arrowShaft.parent = figure;
 
-  const arrowTip = B.MeshBuilder.CreateCylinder(`${name}_arr_tip`, { diameterTop: 0, diameterBottom: 0.46, height: 0.42, tessellation: 3 }, scene);
+  const arrowTip = B.MeshBuilder.CreateCylinder(`${name}_arr_tip`, { diameterTop: 0, diameterBottom: 0.40, height: 0.34, tessellation: 3 }, scene);
   arrowTip.rotation.x = Math.PI * 0.5;
-  arrowTip.position.set(0, 0.05, 0.84);
+  arrowTip.position.set(0, 0.04, 0.64);
   arrowTip.material = arrowMat;
   arrowTip.parent = figure;
 
-  // Statue body (sculpted 2.15m aerospace monument)
-  const legs = B.MeshBuilder.CreateCylinder(`${name}_legs`, { diameterTop: 0.54, diameterBottom: 0.64, height: 0.90, tessellation: 20 }, scene);
-  legs.position.y = 0.47;
-  legs.material = statueMat;
-  legs.parent = figure;
+  // Sculpted twin armored EVA legs & boots (grounded on turntable)
+  for (const s of [-1, 1]) {
+    const boot = B.MeshBuilder.CreateCylinder(`${name}_boot_${s}`, { diameterTop: 0.20, diameterBottom: 0.25, height: 0.22, tessellation: 16 }, scene);
+    boot.position.set(s * 0.18, 0.12, 0.03);
+    boot.material = plinthMat;
+    boot.parent = figure;
 
-  const belt = B.MeshBuilder.CreateTorus(`${name}_belt`, { diameter: 0.60, thickness: 0.09, tessellation: 22 }, scene);
-  belt.position.y = 0.92;
+    const leg = B.MeshBuilder.CreateCylinder(`${name}_leg_${s}`, { diameterTop: 0.22, diameterBottom: 0.19, height: 0.72, tessellation: 18 }, scene);
+    leg.position.set(s * 0.18, 0.56, 0);
+    leg.material = statueMat;
+    leg.parent = figure;
+  }
+
+  // Sculpted waist harness + tapered contoured torso (zero sharp box edges!)
+  const pelvis = B.MeshBuilder.CreateCylinder(`${name}_pelvis`, { diameterTop: 0.56, diameterBottom: 0.50, height: 0.22, tessellation: 24 }, scene);
+  pelvis.scaling.set(1.0, 1.0, 0.72);
+  pelvis.position.y = 0.96;
+  pelvis.material = trimMat;
+  pelvis.parent = figure;
+
+  const belt = B.MeshBuilder.CreateTorus(`${name}_belt`, { diameter: 0.56, thickness: 0.065, tessellation: 28 }, scene);
+  belt.scaling.set(1.0, 1.0, 0.78);
+  belt.position.y = 0.99;
   belt.material = plinthMat;
   belt.parent = figure;
 
-  const chest = B.MeshBuilder.CreateBox(`${name}_chest`, { width: 0.72, height: 0.70, depth: 0.42 }, scene);
-  chest.position.y = 1.28;
-  chest.material = statueMat;
-  chest.parent = figure;
+  const torso = B.MeshBuilder.CreateCylinder(`${name}_torso`, { diameterTop: 0.68, diameterBottom: 0.54, height: 0.68, tessellation: 24 }, scene);
+  torso.scaling.set(1.0, 1.0, 0.68);
+  torso.position.y = 1.38;
+  torso.material = statueMat;
+  torso.parent = figure;
 
-  // Sculpted shoulder pauldrons & neck collar ring
-  for (const s of [-1, 1]) {
-    const sh = B.MeshBuilder.CreateSphere(`${name}_sh_${s}`, { diameter: 0.32, segments: 14 }, scene);
-    sh.position.set(s * 0.42, 1.54, 0);
-    sh.material = statueMat;
-    sh.parent = figure;
-  }
-  const collar = B.MeshBuilder.CreateTorus(`${name}_collar`, { diameter: 0.44, thickness: 0.08, tessellation: 22 }, scene);
-  collar.position.y = 1.66;
-  collar.material = plinthMat;
-  collar.parent = figure;
+  // Contoured breastplate armor dome + luminous chest telemetry arc (+Z front!)
+  const chestPlate = B.MeshBuilder.CreateSphere(`${name}_cplate`, { diameter: 0.52, segments: 18 }, scene);
+  chestPlate.scaling.set(0.95, 1.05, 0.42);
+  chestPlate.position.set(0, 1.42, 0.16);
+  chestPlate.material = statueMat;
+  chestPlate.parent = figure;
 
-  // Glowing front chest diamond emblem (always on +Z front!)
-  const chestBadge = B.MeshBuilder.CreateBox(`${name}_badge`, { width: 0.24, height: 0.24, depth: 0.08 }, scene);
-  chestBadge.position.set(0, 1.32, 0.23);
-  chestBadge.rotation.z = Math.PI / 4;
+  const chestBadge = B.MeshBuilder.CreateTorus(`${name}_badge`, { diameter: 0.20, thickness: 0.036, tessellation: 24 }, scene);
+  chestBadge.rotation.x = Math.PI * 0.5;
+  chestBadge.position.set(0, 1.44, 0.27);
   chestBadge.material = arrowMat;
   chestBadge.parent = figure;
 
-  // Backpack strictly on BACK (-Z)
-  const pack = B.MeshBuilder.CreateBox(`${name}_back`, { width: 0.52, height: 0.62, depth: 0.28 }, scene);
-  pack.position.set(0, 1.3, -0.34);
+  // Sculpted shoulder pauldrons & sleek gorget collar ring
+  for (const s of [-1, 1]) {
+    const sh = B.MeshBuilder.CreateSphere(`${name}_sh_${s}`, { diameter: 0.28, segments: 16 }, scene);
+    sh.position.set(s * 0.38, 1.62, 0);
+    sh.material = statueMat;
+    sh.parent = figure;
+  }
+  const collar = B.MeshBuilder.CreateTorus(`${name}_collar`, { diameter: 0.44, thickness: 0.07, tessellation: 24 }, scene);
+  collar.position.y = 1.74;
+  collar.material = trimMat;
+  collar.parent = figure;
+
+  // Sculpted life-support backpack strictly on BACK (-Z)
+  const pack = B.MeshBuilder.CreateCylinder(`${name}_back`, { diameterTop: 0.46, diameterBottom: 0.48, height: 0.58, tessellation: 18 }, scene);
+  pack.scaling.set(1.0, 1.0, 0.54);
+  pack.position.set(0, 1.40, -0.28);
   pack.material = plinthMat;
   pack.parent = figure;
 
-  // Pointing forward forearm (+Z) so silhouette immediately reveals facing direction!
-  const arm = B.MeshBuilder.CreateCylinder(`${name}_arm`, { diameter: 0.16, height: 0.74, tessellation: 14 }, scene);
-  arm.rotation.x = Math.PI * 0.44;
-  arm.position.set(0.45, 1.40, 0.34);
-  arm.material = statueMat;
-  arm.parent = figure;
+  // Left arm resting cleanly at side (always stays inside alcove!)
+  const leftArm = B.MeshBuilder.CreateCylinder(`${name}_larm`, { diameterTop: 0.16, diameterBottom: 0.14, height: 0.58, tessellation: 14 }, scene);
+  leftArm.position.set(-0.42, 1.32, 0.02);
+  leftArm.rotation.z = 0.12;
+  leftArm.material = statueMat;
+  leftArm.parent = figure;
 
-  // Helmet + unmistakable protruding front visor (+Z)
-  const helmet = B.MeshBuilder.CreateSphere(`${name}_helm`, { diameter: 0.48, segments: 20 }, scene);
-  helmet.position.y = 1.90;
+  // Right arm holding a glowing surveyor's astrolabe beacon slightly forward (+Z, compact so zero window clipping!)
+  const rightUpper = B.MeshBuilder.CreateCylinder(`${name}_rarm_u`, { diameter: 0.15, height: 0.34, tessellation: 14 }, scene);
+  rightUpper.position.set(0.41, 1.45, 0.08);
+  rightUpper.rotation.x = 0.45;
+  rightUpper.material = statueMat;
+  rightUpper.parent = figure;
+
+  const rightFore = B.MeshBuilder.CreateCylinder(`${name}_rarm_f`, { diameter: 0.13, height: 0.36, tessellation: 14 }, scene);
+  rightFore.position.set(0.38, 1.34, 0.28);
+  rightFore.rotation.x = Math.PI * 0.46;
+  rightFore.material = statueMat;
+  rightFore.parent = figure;
+
+  const astrolabe = B.MeshBuilder.CreateTorus(`${name}_astro`, { diameter: 0.22, thickness: 0.028, tessellation: 24 }, scene);
+  astrolabe.position.set(0.38, 1.38, 0.48);
+  astrolabe.material = arrowMat;
+  astrolabe.parent = figure;
+
+  // Domed EVA Helmet + unmistakable deep-metallic reflective front visor (+Z)
+  const helmet = B.MeshBuilder.CreateSphere(`${name}_helm`, { diameter: 0.48, segments: 24 }, scene);
+  helmet.position.y = 1.98;
   helmet.material = statueMat;
   helmet.parent = figure;
 
-  const visor = B.MeshBuilder.CreateSphere(`${name}_vis`, { diameter: 0.40, segments: 16 }, scene);
-  visor.scaling.set(0.95, 0.72, 0.72);
-  visor.position.set(0, 1.90, 0.14);
+  const visor = B.MeshBuilder.CreateSphere(`${name}_vis`, { diameter: 0.42, segments: 20 }, scene);
+  visor.scaling.set(0.94, 0.72, 0.74);
+  visor.position.set(0, 1.98, 0.13);
   visor.material = visorMat;
   visor.parent = figure;
+
+  const visorRim = B.MeshBuilder.CreateTorus(`${name}_vrim`, { diameter: 0.36, thickness: 0.025, tessellation: 24 }, scene);
+  visorRim.rotation.x = Math.PI * 0.5;
+  visorRim.position.set(0, 1.98, 0.17);
+  visorRim.material = trimMat;
+  visorRim.parent = figure;
 
   for (const m of root.getChildMeshes()) {
     m.renderingGroupId = RENDER_GROUPS.ENVIRONMENT;
@@ -412,9 +474,7 @@ export function buildSculptedAstronautStatue(scene, name, options = {}) {
 
 /**
  * F-Key Collapsible 8-Cell Tesseract Unfolded Holographic Topology Map (Chapter 1 Levels 1–4).
- * Renders a crisp real-time rotating 3D cross-net projection of all 8 boundary cells,
- * 24 adjacency edges, current room highlight, antipodal blind spot, Level 3 golden edge loop,
- * and Level 4 live Hamiltonian beacon trail.
+ * Starts cleanly collapsed by default (zero Frame-1 spoiler & 85%+ clear viewport!); press F anytime to expand.
  */
 export class TesseractTopologyMap {
   constructor({ wrapperEl, bodyEl, canvas, titleEl, subEl }) {
@@ -424,14 +484,23 @@ export class TesseractTopologyMap {
     this.ctx = canvas ? canvas.getContext('2d') : null;
     this.titleEl = titleEl;
     this.subEl = subEl;
-    this.expanded = true;
+    this.expanded = false;
     this.spinAngle = 0.55;
+    if (this.bodyEl) {
+      this.bodyEl.classList.remove('is-collapsed');
+    }
+    if (this.wrapperEl) {
+      this.wrapperEl.classList.add('is-collapsed');
+    }
   }
 
   setExpanded(expanded) {
     this.expanded = Boolean(expanded);
     if (this.bodyEl) {
-      this.bodyEl.classList.toggle('is-collapsed', !this.expanded);
+      this.bodyEl.classList.remove('is-collapsed');
+    }
+    if (this.wrapperEl) {
+      this.wrapperEl.classList.toggle('is-collapsed', !this.expanded);
     }
     return this.expanded;
   }

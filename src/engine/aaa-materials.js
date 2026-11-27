@@ -637,8 +637,9 @@ export function setupAAAPostProcessing(scene, camera) {
 // ---------------------------------------------------------------------------
 
 /**
- * Clean diffused aerospace laboratory 6-face IBL CubeTexture for Zone A.
- * Crisp white zenith skylight strips, soft-mist composite walls, cool steel floor bounce.
+ * High-contrast architectural aerospace laboratory 6-face IBL CubeTexture for Zone A.
+ * Rich contrast between deep titanium bulkhead horizons, crisp overhead daylight skylight ribbons,
+ * and subtle cyan/gold instrument reflections makes brushed steel, brass, and Liquid-Mercury gleam!
  */
 export function createStationEnvironmentTexture(scene) {
   const B = globalThis.BABYLON;
@@ -664,34 +665,39 @@ export function createStationEnvironmentTexture(scene) {
         const ny = dy / len;
         const nz = dz / len;
 
-        // Clean soft-mist aerospace diffuse bounce
-        let r = 162;
-        let g = 170;
-        let b = 180;
+        // Sculpted aerospace studio contrast (avoids flat grey reflections on liquid mercury!)
+        let r = 68;
+        let g = 78;
+        let b = 94;
 
         if (ny > 0) {
-          const up = Math.pow(ny, 1.3);
-          r += up * 82;
-          g += up * 84;
-          b += up * 86;
-          // Diffused laboratory skylight panel strip overhead
-          const panel = Math.exp(-Math.pow(nx * 2.8, 2)) * Math.pow(ny, 1.8);
-          r += panel * 45;
-          g += panel * 48;
-          b += panel * 52;
+          const up = Math.pow(ny, 1.35);
+          r += up * 112;
+          g += up * 118;
+          b += up * 126;
+          // Razor-sharp dual linear skylight lightboxes overhead
+          const stripA = Math.exp(-Math.pow((Math.abs(nx) - 0.34) * 7.5, 2)) * Math.pow(ny, 1.4);
+          const stripCenter = Math.exp(-Math.pow(nx * 5.2, 2)) * Math.pow(ny, 2.0);
+          r += (stripA * 125 + stripCenter * 145);
+          g += (stripA * 132 + stripCenter * 150);
+          b += (stripA * 142 + stripCenter * 158);
         } else {
-          // Cool steel deck reflection below
-          const down = Math.pow(-ny, 1.2);
-          r -= down * 48;
-          g -= down * 42;
-          b -= down * 34;
+          // Deep brushed-titanium deck bounce underneath for strong chrome contrast
+          const down = Math.pow(-ny, 1.15);
+          r = r * (1 - down * 0.62) + 18 * down;
+          g = g * (1 - down * 0.58) + 24 * down;
+          b = b * (1 - down * 0.50) + 34 * down;
         }
 
-        // Subtle crisp cyan instrument bounce along axial corridors
-        const corridorCyan = Math.pow(Math.abs(nz), 5) * (1 - Math.abs(ny) * 0.6);
-        r += corridorCyan * 12;
-        g += corridorCyan * 34;
-        b += corridorCyan * 36;
+        // Crisp cyan & warm-gold architectural rim ribbons at horizon (gives liquid mercury iridescent magic!)
+        const horizonBand = Math.exp(-Math.pow(ny * 4.2, 2));
+        const cyanRing = Math.pow(Math.max(0, nz), 3) * horizonBand;
+        const backCyan = Math.pow(Math.max(0, -nz), 4) * horizonBand;
+        const goldRim = Math.pow(Math.abs(nx), 4) * horizonBand;
+
+        r += cyanRing * 32 + backCyan * 18 + goldRim * 92;
+        g += cyanRing * 128 + backCyan * 68 + goldRim * 76;
+        b += cyanRing * 132 + backCyan * 86 + goldRim * 36;
 
         const idx = (y * size + x) * 4;
         data[idx] = Math.min(255, Math.max(0, Math.round(r)));
@@ -715,13 +721,13 @@ export function createStationEnvironmentTexture(scene) {
   );
   cubeTex.name = 'zone_a_station_ibl_env';
   scene.environmentTexture = cubeTex;
-  scene.environmentIntensity = 0.92;
+  scene.environmentIntensity = 1.05;
   return cubeTex;
 }
 
 /**
  * Matte Soft-Mist White Aerospace Composite Wall Panel PBR (#ECEEF2 + #9AA5B4 seams).
- * Crisp machined panel joints, subtle beveled rivets & Sobel normal map, zero grime.
+ * Bloom-safe calibrated reflectance + precision recessed seams, rivets, & Sobel normal relief.
  */
 export function createAviationPanelPBR(scene, name = 'zone_a_wall_pbr', uScale = 2, vScale = 2) {
   const B = globalThis.BABYLON;
@@ -736,42 +742,61 @@ export function createAviationPanelPBR(scene, name = 'zone_a_wall_pbr', uScale =
   const oCtx = ormTex.getContext();
   const hCtx = heightCanvas.getContext('2d');
 
-  // Soft-mist white matte composite base (#ECEEF2)
+  // Calibrated soft-mist white matte composite (reads crisp white under ACES, never clips bloom!)
   const bg = aCtx.createLinearGradient(0, 0, 0, size);
-  bg.addColorStop(0, '#F2F4F7');
-  bg.addColorStop(0.5, '#ECEEF2');
-  bg.addColorStop(1, '#E2E6EC');
+  bg.addColorStop(0, '#E3E7EE');
+  bg.addColorStop(0.5, '#DCE2EA');
+  bg.addColorStop(1, '#CFD7E2');
   aCtx.fillStyle = bg;
   aCtx.fillRect(0, 0, size, size);
 
-  // ORM: AO=246, Roughness=155 (~0.61 clean matte composite), Metallic=14
-  oCtx.fillStyle = 'rgb(246, 155, 14)';
+  // ORM: AO=244, Roughness=198 (~0.78 smooth satin-matte composite -> zero harsh white glare blocks!), Metallic=16
+  oCtx.fillStyle = 'rgb(244, 198, 16)';
   oCtx.fillRect(0, 0, size, size);
   hCtx.fillStyle = 'rgb(185, 185, 185)';
   hCtx.fillRect(0, 0, size, size);
 
-  // Precision machined modular wall panel seams (2x2 aerospace grid)
+  // Subtle architectural aerospace micro-grid & precision recessed modular seams
   const drawSeamRect = (x, y, w, h) => {
-    aCtx.strokeStyle = '#BAC3D0';
+    aCtx.strokeStyle = '#AEB8C7';
     aCtx.lineWidth = 4;
     aCtx.strokeRect(x + 2, y + 2, w - 4, h - 4);
-    aCtx.strokeStyle = '#9AA5B4';
-    aCtx.lineWidth = 1.5;
+    aCtx.strokeStyle = '#8895A8';
+    aCtx.lineWidth = 1.6;
     aCtx.strokeRect(x + 3, y + 3, w - 6, h - 6);
 
-    oCtx.strokeStyle = 'rgb(195, 120, 70)';
+    oCtx.strokeStyle = 'rgb(175, 145, 76)';
     oCtx.lineWidth = 4;
     oCtx.strokeRect(x + 2, y + 2, w - 4, h - 4);
 
-    hCtx.strokeStyle = 'rgb(95, 95, 95)';
+    hCtx.strokeStyle = 'rgb(88, 88, 88)';
     hCtx.lineWidth = 4;
     hCtx.strokeRect(x + 2, y + 2, w - 4, h - 4);
 
-    // Subtle inset aerospace alignment bar
-    aCtx.fillStyle = '#DFE4EC';
-    aCtx.fillRect(x + 24, y + h - 24, w - 48, 8);
-    hCtx.fillStyle = 'rgb(150, 150, 150)';
-    hCtx.fillRect(x + 24, y + h - 24, w - 48, 8);
+    // Subtle inset structural chamfer panel inside each modular bay
+    aCtx.strokeStyle = 'rgba(148, 160, 178, 0.45)';
+    aCtx.lineWidth = 1.5;
+    aCtx.strokeRect(x + 18, y + 18, w - 36, h - 36);
+    hCtx.strokeStyle = 'rgb(156, 156, 156)';
+    hCtx.lineWidth = 2;
+    hCtx.strokeRect(x + 18, y + 18, w - 36, h - 36);
+
+    // Precision micro-fasteners at panel corners
+    for (const [rx, ry] of [
+      [x + 11, y + 11],
+      [x + w - 11, y + 11],
+      [x + 11, y + h - 11],
+      [x + w - 11, y + h - 11],
+    ]) {
+      aCtx.fillStyle = '#96A3B5';
+      aCtx.beginPath();
+      aCtx.arc(rx, ry, 2.6, 0, Math.PI * 2);
+      aCtx.fill();
+      hCtx.fillStyle = 'rgb(110, 110, 110)';
+      hCtx.beginPath();
+      hCtx.arc(rx, ry, 2.6, 0, Math.PI * 2);
+      hCtx.fill();
+    }
   };
 
   drawSeamRect(0, 0, 256, 256);
@@ -779,13 +804,16 @@ export function createAviationPanelPBR(scene, name = 'zone_a_wall_pbr', uScale =
   drawSeamRect(0, 256, 256, 256);
   drawSeamRect(256, 256, 256, 256);
 
-  // Clean light-steel structural waist rail
-  aCtx.fillStyle = '#CBD2DC';
-  aCtx.fillRect(0, 246, size, 20);
-  oCtx.fillStyle = 'rgb(235, 110, 115)';
-  oCtx.fillRect(0, 246, size, 20);
-  hCtx.fillStyle = 'rgb(212, 212, 212)';
-  hCtx.fillRect(0, 246, size, 20);
+  // Brushed light-titanium structural datum channel across mid-wall
+  aCtx.fillStyle = '#B8C2D0';
+  aCtx.fillRect(0, 244, size, 24);
+  aCtx.fillStyle = '#92A0B4';
+  aCtx.fillRect(0, 244, size, 3);
+  aCtx.fillRect(0, 265, size, 3);
+  oCtx.fillStyle = 'rgb(232, 118, 138)';
+  oCtx.fillRect(0, 244, size, 24);
+  hCtx.fillStyle = 'rgb(218, 218, 218)';
+  hCtx.fillRect(0, 244, size, 24);
 
   albedoTex.update();
   ormTex.update();
@@ -794,7 +822,7 @@ export function createAviationPanelPBR(scene, name = 'zone_a_wall_pbr', uScale =
   ormTex.uScale = uScale;
   ormTex.vScale = vScale;
 
-  const bumpTex = buildNormalTextureFromHeightCanvas(scene, `${name}_normal`, heightCanvas, 1.8, uScale, vScale);
+  const bumpTex = buildNormalTextureFromHeightCanvas(scene, `${name}_normal`, heightCanvas, 2.1, uScale, vScale);
 
   const mat = new B.PBRMaterial(name, scene);
   mat.albedoTexture = albedoTex;
@@ -803,7 +831,7 @@ export function createAviationPanelPBR(scene, name = 'zone_a_wall_pbr', uScale =
   mat.useRoughnessFromMetallicTextureGreen = true;
   mat.useMetallnessFromMetallicTextureBlue = true;
   mat.bumpTexture = bumpTex;
-  mat.bumpTexture.level = 0.65;
+  mat.bumpTexture.level = 0.72;
   mat.metallic = 1.0;
   mat.roughness = 1.0;
   mat.disableDepthWrite = false;
@@ -812,7 +840,7 @@ export function createAviationPanelPBR(scene, name = 'zone_a_wall_pbr', uScale =
 }
 
 /**
- * Brushed Light Steel Aerospace Decking PBR (#9AA5B4 / #C5CDD8) for Zone A floors & bulkheads.
+ * Brushed Light Steel Aerospace Decking PBR (#9AA5B4 / #C5CDD8) for Zone A decks & bulkheads.
  */
 export function createAerospaceDeckPBR(scene, name = 'zone_a_deck_pbr', uScale = 2, vScale = 2) {
   const B = globalThis.BABYLON;
@@ -827,35 +855,33 @@ export function createAerospaceDeckPBR(scene, name = 'zone_a_deck_pbr', uScale =
   const oCtx = ormTex.getContext();
   const hCtx = heightCanvas.getContext('2d');
 
-  aCtx.fillStyle = '#CFD6DF';
+  aCtx.fillStyle = '#C2CBD6';
   aCtx.fillRect(0, 0, size, size);
-  oCtx.fillStyle = 'rgb(242, 115, 76)';
+  oCtx.fillStyle = 'rgb(240, 132, 82)';
   oCtx.fillRect(0, 0, size, size);
   hCtx.fillStyle = 'rgb(180, 180, 180)';
   hCtx.fillRect(0, 0, size, size);
 
-  // Subtle geometric deck tiles & precision traction ribs
   const step = 128;
   for (let gx = 0; gx < size; gx += step) {
     for (let gy = 0; gy < size; gy += step) {
-      aCtx.strokeStyle = '#9AA5B4';
+      aCtx.strokeStyle = '#8C98A9';
       aCtx.lineWidth = 3;
       aCtx.strokeRect(gx + 2, gy + 2, step - 4, step - 4);
-      hCtx.strokeStyle = 'rgb(110, 110, 110)';
+      hCtx.strokeStyle = 'rgb(102, 102, 102)';
       hCtx.lineWidth = 3;
       hCtx.strokeRect(gx + 2, gy + 2, step - 4, step - 4);
 
-      // Clean micro-recessed corner tabs
-      aCtx.fillStyle = '#AEB8C5';
+      aCtx.fillStyle = '#A3AEBD';
       aCtx.fillRect(gx + 10, gy + 10, 10, 10);
       aCtx.fillRect(gx + step - 20, gy + step - 20, 10, 10);
     }
   }
 
-  // Central brushed guide stripe
-  aCtx.fillStyle = '#DCE2EA';
+  // Central brushed titanium guide channel
+  aCtx.fillStyle = '#D0D8E2';
   aCtx.fillRect(size * 0.44, 0, size * 0.12, size);
-  oCtx.fillStyle = 'rgb(248, 86, 128)';
+  oCtx.fillStyle = 'rgb(248, 96, 132)';
   oCtx.fillRect(size * 0.44, 0, size * 0.12, size);
 
   albedoTex.update();
@@ -865,7 +891,7 @@ export function createAerospaceDeckPBR(scene, name = 'zone_a_deck_pbr', uScale =
   ormTex.uScale = uScale;
   ormTex.vScale = vScale;
 
-  const bumpTex = buildNormalTextureFromHeightCanvas(scene, `${name}_normal`, heightCanvas, 1.5, uScale, vScale);
+  const bumpTex = buildNormalTextureFromHeightCanvas(scene, `${name}_normal`, heightCanvas, 1.7, uScale, vScale);
 
   const mat = new B.PBRMaterial(name, scene);
   mat.albedoTexture = albedoTex;
@@ -874,61 +900,206 @@ export function createAerospaceDeckPBR(scene, name = 'zone_a_deck_pbr', uScale =
   mat.useRoughnessFromMetallicTextureGreen = true;
   mat.useMetallnessFromMetallicTextureBlue = true;
   mat.bumpTexture = bumpTex;
-  mat.bumpTexture.level = 0.55;
+  mat.bumpTexture.level = 0.6;
   mat.metallic = 1.0;
   mat.roughness = 1.0;
   mat.clearCoat.isEnabled = true;
-  mat.clearCoat.intensity = 0.25;
-  mat.clearCoat.roughness = 0.26;
+  mat.clearCoat.intensity = 0.28;
+  mat.clearCoat.roughness = 0.24;
   mat.disableDepthWrite = false;
   mat.needDepthPrePass = false;
   return mat;
 }
 
 /**
- * Liquid-Mercury 4D Rift Mirror Sphere PBR (Level 4 centerpiece, 2.2m diameter).
+ * Polished Zone A Clean-Room Reflective Laboratory Floor PBR with Real-Time MirrorTexture!
+ * Matches Level 14's mirror-floor craft adapted to Zone A soft-mist aerospace steel palette.
+ */
+export function createStationMirrorFloorPBR(scene, mirrorRenderList, uScale = 2, vScale = 2) {
+  const B = globalThis.BABYLON;
+  const mat = createAerospaceDeckPBR(scene, 'zone_a_mirror_deck_pbr', uScale, vScale);
+
+  const mirrorTex = new B.MirrorTexture('zone_a_floor_mirror', 512, scene, true);
+  mirrorTex.mirrorPlane = new B.Plane(0, -1, 0, 0);
+  mirrorTex.level = 0.34;
+  mirrorTex.adaptiveBlurKernel = 16;
+  mirrorTex.renderList = mirrorRenderList;
+
+  mat.reflectionTexture = mirrorTex;
+  mat.clearCoat.isEnabled = true;
+  mat.clearCoat.intensity = 0.52;
+  mat.clearCoat.roughness = 0.14;
+  return { mat, mirrorTex };
+}
+
+/**
+ * High-Contrast Liquid-Mercury 4D Rift Mirror Sphere PBR (Level 4 centerpiece).
+ * Features micro-ripple normal texture + chrome clearcoat so it gleams like true liquid silver!
  */
 export function createMercuryRiftPBR(scene, name = 'zone_a_mercury_pbr') {
   const B = globalThis.BABYLON;
+  const size = 256;
+  const heightCanvas = document.createElement('canvas');
+  heightCanvas.width = size;
+  heightCanvas.height = size;
+  const hCtx = heightCanvas.getContext('2d');
+  const img = hCtx.createImageData(size, size);
+  for (let y = 0; y < size; y += 1) {
+    for (let x = 0; x < size; x += 1) {
+      const u = (x / size) * Math.PI * 2;
+      const v = (y / size) * Math.PI * 2;
+      // Subtle periodic standing-wave mercury surface micro-ripples
+      const wave =
+        Math.sin(u * 4 + Math.cos(v * 3)) * 0.45 +
+        Math.cos(v * 5 - Math.sin(u * 2)) * 0.35 +
+        Math.sin((u + v) * 6) * 0.2;
+      const val = Math.round(128 + wave * 34);
+      const idx = (y * size + x) * 4;
+      img.data[idx] = val;
+      img.data[idx + 1] = val;
+      img.data[idx + 2] = val;
+      img.data[idx + 3] = 255;
+    }
+  }
+  hCtx.putImageData(img, 0, 0);
+  const rippleNormal = buildNormalTextureFromHeightCanvas(scene, `${name}_ripple_n`, heightCanvas, 1.4, 2, 2);
+
   const mat = new B.PBRMaterial(name, scene);
-  mat.albedoColor = new B.Color3(0.56, 0.66, 0.78);
+  mat.albedoColor = new B.Color3(0.76, 0.85, 0.96);
   mat.metallic = 1.0;
-  mat.roughness = 0.04;
+  mat.roughness = 0.05;
+  mat.bumpTexture = rippleNormal;
+  mat.bumpTexture.level = 0.28;
   mat.clearCoat.isEnabled = true;
   mat.clearCoat.intensity = 1.0;
-  mat.clearCoat.roughness = 0.02;
-  mat.emissiveColor = new B.Color3(0.03, 0.08, 0.12);
+  mat.clearCoat.roughness = 0.03;
+  mat.clearCoat.isTintEnabled = true;
+  mat.clearCoat.tintColor = B.Color3.FromHexString('#B8F6EE');
+  mat.emissiveColor = new B.Color3(0.05, 0.14, 0.20);
   mat.disableDepthWrite = false;
   mat.needDepthPrePass = false;
   return mat;
 }
 
 /**
- * Crisp backlit bulkhead doorway plaque texture (e.g. "X+", "W− · 目标", "★ Y+").
+ * Precision engraved scientific 360° degree-tick compass faceplate texture for Level 3 Gyroscope!
+ */
+export function createGyroDialTexture(scene, name = 'l3_gyro_dial_tex') {
+  const B = globalThis.BABYLON;
+  const size = 512;
+  const tex = new B.DynamicTexture(name, { width: size, height: size }, scene, true);
+  const ctx = tex.getContext();
+  const cx = size / 2;
+  const cy = size / 2;
+
+  ctx.clearRect(0, 0, size, size);
+
+  // Deep sapphire-obsidian instrument glass backing
+  const bg = ctx.createRadialGradient(cx, cy, 24, cx, cy, 246);
+  bg.addColorStop(0, 'rgba(18, 30, 46, 0.88)');
+  bg.addColorStop(0.82, 'rgba(11, 20, 32, 0.94)');
+  bg.addColorStop(1, 'rgba(77, 230, 211, 0.35)');
+  ctx.fillStyle = bg;
+  ctx.beginPath();
+  ctx.arc(cx, cy, 246, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Concentric precision reticle rings
+  ctx.strokeStyle = 'rgba(216, 174, 86, 0.45)';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(cx, cy, 212, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.strokeStyle = 'rgba(77, 230, 211, 0.24)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(cx, cy, 146, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Subtle crosshairs
+  ctx.strokeStyle = 'rgba(246, 244, 238, 0.14)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(cx - 210, cy);
+  ctx.lineTo(cx + 210, cy);
+  ctx.moveTo(cx, cy - 210);
+  ctx.lineTo(cx, cy + 210);
+  ctx.stroke();
+
+  // 24 precision degree ticks (every 15°)
+  for (let deg = 0; deg < 360; deg += 15) {
+    const rad = (deg * Math.PI) / 180;
+    const isMajor = deg % 90 === 0;
+    const r0 = isMajor ? 182 : 196;
+    const r1 = 216;
+    ctx.strokeStyle = deg === 270 ? '#69F0AE' : isMajor ? '#F7C346' : 'rgba(232, 240, 250, 0.55)';
+    ctx.lineWidth = isMajor ? 5 : 2.5;
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(rad) * r0, cy + Math.sin(rad) * r0);
+    ctx.lineTo(cx + Math.cos(rad) * r1, cy + Math.sin(rad) * r1);
+    ctx.stroke();
+  }
+
+  // Luminous "+90° ▲" top calibration arc & label
+  ctx.strokeStyle = '#69F0AE';
+  ctx.lineWidth = 7;
+  ctx.beginPath();
+  ctx.arc(cx, cy, 228, -Math.PI * 0.5 - 0.22, -Math.PI * 0.5 + 0.22);
+  ctx.stroke();
+
+  ctx.font = '700 32px "JetBrains Mono", ui-monospace, monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#69F0AE';
+  ctx.fillText('+90°', cx, cy - 154);
+
+  ctx.font = '600 24px "JetBrains Mono", ui-monospace, monospace';
+  ctx.fillStyle = 'rgba(247, 195, 70, 0.85)';
+  ctx.fillText('0°', cx + 166, cy + 2);
+  ctx.fillStyle = 'rgba(255, 107, 107, 0.72)';
+  ctx.fillText('−90°', cx, cy + 162);
+
+  tex.hasAlpha = true;
+  tex.update(false);
+  return tex;
+}
+
+/**
+ * Crisp backlit bulkhead doorway plaque texture (frosted sapphire-obsidian glass aerospace readout).
  */
 export function createCellPlaqueTexture(scene, name, title, subtitle = '', accentHex = '#4DE6D3') {
   const B = globalThis.BABYLON;
   const tex = new B.DynamicTexture(name, { width: 512, height: 192 }, scene, true);
   const ctx = tex.getContext();
-  ctx.fillStyle = '#18202B';
+
+  const grad = ctx.createLinearGradient(0, 0, 0, 192);
+  grad.addColorStop(0, '#162130');
+  grad.addColorStop(1, '#0F1722');
+  ctx.fillStyle = grad;
   ctx.fillRect(0, 0, 512, 192);
 
-  // Subtle brushed steel frame & accent top bar
-  ctx.strokeStyle = accentHex;
-  ctx.lineWidth = 6;
+  // Subtle corner technical brackets + accent header line
+  ctx.strokeStyle = 'rgba(180, 198, 220, 0.26)';
+  ctx.lineWidth = 3;
   ctx.strokeRect(8, 8, 496, 176);
 
   ctx.fillStyle = accentHex;
-  ctx.fillRect(14, 14, 484, 10);
+  ctx.fillRect(10, 10, 492, 10);
+
+  // Crisp glowing corner chevrons
+  ctx.fillStyle = accentHex;
+  ctx.fillRect(10, 170, 38, 8);
+  ctx.fillRect(464, 170, 38, 8);
 
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.font = '700 76px "JetBrains Mono", ui-monospace, sans-serif';
-  ctx.fillStyle = '#F6F8FA';
-  ctx.fillText(title, 256, subtitle ? 86 : 102);
+  ctx.font = '700 78px "JetBrains Mono", ui-monospace, sans-serif';
+  ctx.fillStyle = '#F6F9FC';
+  ctx.fillText(title, 256, subtitle ? 84 : 102);
 
   if (subtitle) {
-    ctx.font = '600 28px "Inter", "PingFang SC", "Microsoft YaHei", sans-serif';
+    ctx.font = '600 30px "Inter", "PingFang SC", "Microsoft YaHei", sans-serif';
     ctx.fillStyle = accentHex;
     ctx.fillText(subtitle, 256, 148);
   }
@@ -952,7 +1123,6 @@ export function createFluorescentArrowTexture(scene, name, label = '↑ 上', he
   ctx.shadowColor = hexColor;
   ctx.shadowBlur = 18;
 
-  // Hand-painted glowing arrow shaft & chevron
   ctx.lineWidth = 24;
   ctx.beginPath();
   ctx.moveTo(256, 396);
@@ -965,7 +1135,6 @@ export function createFluorescentArrowTexture(scene, name, label = '↑ 上', he
   ctx.lineTo(356, 206);
   ctx.stroke();
 
-  // Hand-stenciled Chinese label underneath
   ctx.font = '700 66px "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -978,7 +1147,7 @@ export function createFluorescentArrowTexture(scene, name, label = '↑ 上', he
 
 /**
  * Zone A Post-Processing Pipeline: clean crisp research station daylight exposure,
- * restrained bloom so soft-mist white walls never clip while cyan/gold beacons gleam.
+ * bloom threshold calibrated at 1.12 so matte white walls NEVER glow while cyan/gold beacons gleam!
  */
 export function setupZoneAPostProcessing(scene, camera) {
   const B = globalThis.BABYLON;
@@ -988,24 +1157,197 @@ export function setupZoneAPostProcessing(scene, camera) {
   pipeline.fxaaEnabled = true;
 
   pipeline.bloomEnabled = true;
-  pipeline.bloomThreshold = 0.82;
-  pipeline.bloomWeight = 0.34;
-  pipeline.bloomKernel = 48;
+  pipeline.bloomThreshold = 1.12;
+  pipeline.bloomWeight = 0.36;
+  pipeline.bloomKernel = 52;
   pipeline.bloomScale = 0.5;
 
   pipeline.imageProcessingEnabled = true;
   pipeline.imageProcessing.toneMappingEnabled = true;
   pipeline.imageProcessing.toneMappingType = B.ImageProcessingConfiguration.TONEMAPPING_ACES;
-  pipeline.imageProcessing.contrast = 1.12;
-  pipeline.imageProcessing.exposure = 1.04;
+  pipeline.imageProcessing.contrast = 1.16;
+  pipeline.imageProcessing.exposure = 1.0;
   pipeline.imageProcessing.vignetteEnabled = true;
-  pipeline.imageProcessing.vignetteWeight = 0.95;
-  pipeline.imageProcessing.vignetteStretch = 0.3;
-  pipeline.imageProcessing.vignetteColor = new B.Color4(0.08, 0.11, 0.15, 0);
+  pipeline.imageProcessing.vignetteWeight = 1.15;
+  pipeline.imageProcessing.vignetteStretch = 0.25;
+  pipeline.imageProcessing.vignetteColor = new B.Color4(0.06, 0.09, 0.14, 0);
 
   pipeline.sharpenEnabled = true;
-  pipeline.sharpen.edgeAmount = 0.14;
+  pipeline.sharpen.edgeAmount = 0.16;
   pipeline.sharpen.colorAmount = 1.0;
+
+  return pipeline;
+}
+
+// ---------------------------------------------------------------------------
+// Prologue Cinematic Deep-Space Cockpit AAA PBR + IBL + Post-Processing Suite
+// ---------------------------------------------------------------------------
+
+/**
+ * Deep-space Voyager cockpit 6-face procedural IBL CubeTexture (nebula cyan-indigo + red alert bounce).
+ */
+export function createPrologueEnvironmentTexture(scene) {
+  const B = globalThis.BABYLON;
+  const size = 64;
+  const faceDirs = [
+    (u, v) => [1, -v, -u],
+    (u, v) => [-1, -v, u],
+    (u, v) => [u, 1, v],
+    (u, v) => [u, -1, -v],
+    (u, v) => [u, -v, 1],
+    (u, v) => [-u, -v, -1],
+  ];
+
+  const faces = faceDirs.map((dirFn) => {
+    const data = new Uint8Array(size * size * 4);
+    for (let y = 0; y < size; y += 1) {
+      for (let x = 0; x < size; x += 1) {
+        const u = ((x + 0.5) / size) * 2 - 1;
+        const v = ((y + 0.5) / size) * 2 - 1;
+        const [dx, dy, dz] = dirFn(u, v);
+        const len = Math.hypot(dx, dy, dz) || 1;
+        const nx = dx / len;
+        const ny = dy / len;
+        const nz = dz / len;
+
+        let r = 10;
+        let g = 16;
+        let b = 28;
+
+        // Forward cosmic cyan-white warp core glow
+        const fwd = Math.pow(Math.max(0, nz), 3.0);
+        r += fwd * 120;
+        g += fwd * 185;
+        b += fwd * 225;
+
+        // Overhead warm-crimson cockpit emergency beacon bounce
+        const overhead = Math.pow(Math.max(0, ny), 2.5);
+        r += overhead * 92;
+        g += overhead * 30;
+        b += overhead * 34;
+
+        // Flanking cyan dashboard reflection
+        const side = Math.pow(Math.abs(nx), 3) * (1 - Math.abs(ny) * 0.5);
+        r += side * 14;
+        g += side * 52;
+        b += side * 66;
+
+        const idx = (y * size + x) * 4;
+        data[idx] = Math.min(255, Math.round(r));
+        data[idx + 1] = Math.min(255, Math.round(g));
+        data[idx + 2] = Math.min(255, Math.round(b));
+        data[idx + 3] = 255;
+      }
+    }
+    return data;
+  });
+
+  const cubeTex = new B.RawCubeTexture(
+    scene,
+    faces,
+    size,
+    B.Engine.TEXTUREFORMAT_RGBA,
+    B.Engine.TEXTURETYPE_UNSIGNED_BYTE,
+    true,
+    false,
+    B.Texture.TRILINEAR_SAMPLINGMODE
+  );
+  cubeTex.name = 'prologue_voyager_ibl';
+  scene.environmentTexture = cubeTex;
+  scene.environmentIntensity = 1.25;
+  return cubeTex;
+}
+
+/**
+ * Brushed Dark-Titanium Spacecraft Cockpit Hull PBR with Sobel panel relief.
+ */
+export function createCockpitTitaniumPBR(scene, name = 'pro_titanium_pbr') {
+  const B = globalThis.BABYLON;
+  const size = 256;
+  const albedoTex = new B.DynamicTexture(`${name}_albedo`, { width: size, height: size }, scene, true);
+  const ormTex = new B.DynamicTexture(`${name}_orm`, { width: size, height: size }, scene, true);
+  const heightCanvas = document.createElement('canvas');
+  heightCanvas.width = size;
+  heightCanvas.height = size;
+
+  const aCtx = albedoTex.getContext();
+  const oCtx = ormTex.getContext();
+  const hCtx = heightCanvas.getContext('2d');
+
+  aCtx.fillStyle = '#1B2330';
+  aCtx.fillRect(0, 0, size, size);
+  oCtx.fillStyle = 'rgb(236, 98, 208)'; // Metallic ~0.82, Roughness ~0.38 brushed gunmetal titanium
+  oCtx.fillRect(0, 0, size, size);
+  hCtx.fillStyle = 'rgb(165, 165, 165)';
+  hCtx.fillRect(0, 0, size, size);
+
+  // Machined cockpit rib seams & subtle brushed grain
+  for (let y = 0; y < size; y += 4) {
+    aCtx.fillStyle = y % 8 === 0 ? 'rgba(255,255,255,0.028)' : 'rgba(0,0,0,0.035)';
+    aCtx.fillRect(0, y, size, 2);
+  }
+  aCtx.strokeStyle = '#0D131B';
+  aCtx.lineWidth = 3;
+  aCtx.strokeRect(4, 4, size - 8, size - 8);
+  hCtx.strokeStyle = 'rgb(75, 75, 75)';
+  hCtx.lineWidth = 4;
+  hCtx.strokeRect(4, 4, size - 8, size - 8);
+
+  albedoTex.update();
+  ormTex.update();
+  const normalTex = buildNormalTextureFromHeightCanvas(scene, `${name}_normal`, heightCanvas, 2.2, 2, 2);
+
+  const mat = new B.PBRMaterial(name, scene);
+  mat.albedoTexture = albedoTex;
+  mat.metallicTexture = ormTex;
+  mat.useAmbientOcclusionFromMetallicTextureRed = true;
+  mat.useRoughnessFromMetallicTextureGreen = true;
+  mat.useMetallnessFromMetallicTextureBlue = true;
+  mat.bumpTexture = normalTex;
+  mat.bumpTexture.level = 0.7;
+  mat.metallic = 1.0;
+  mat.roughness = 1.0;
+  mat.clearCoat.isEnabled = true;
+  mat.clearCoat.intensity = 0.25;
+  mat.clearCoat.roughness = 0.22;
+  mat.disableDepthWrite = false;
+  mat.needDepthPrePass = false;
+  return mat;
+}
+
+/**
+ * Prologue Cinematic Post-Processing Pipeline (ACES Filmic + lush warp Bloom + subtle film grain).
+ */
+export function setupProloguePostProcessing(scene, camera) {
+  const B = globalThis.BABYLON;
+  const pipeline = new B.DefaultRenderingPipeline('prologue_cinema_pipeline', true, scene, [camera]);
+
+  pipeline.samples = 2;
+  pipeline.fxaaEnabled = true;
+
+  pipeline.bloomEnabled = true;
+  pipeline.bloomThreshold = 0.62;
+  pipeline.bloomWeight = 0.56;
+  pipeline.bloomKernel = 68;
+  pipeline.bloomScale = 0.5;
+
+  pipeline.imageProcessingEnabled = true;
+  pipeline.imageProcessing.toneMappingEnabled = true;
+  pipeline.imageProcessing.toneMappingType = B.ImageProcessingConfiguration.TONEMAPPING_ACES;
+  pipeline.imageProcessing.contrast = 1.2;
+  pipeline.imageProcessing.exposure = 1.08;
+  pipeline.imageProcessing.vignetteEnabled = true;
+  pipeline.imageProcessing.vignetteWeight = 2.0;
+  pipeline.imageProcessing.vignetteStretch = 0.35;
+  pipeline.imageProcessing.vignetteColor = new B.Color4(0.01, 0.02, 0.05, 0);
+
+  pipeline.sharpenEnabled = true;
+  pipeline.sharpen.edgeAmount = 0.16;
+  pipeline.sharpen.colorAmount = 1.0;
+
+  pipeline.grainEnabled = true;
+  pipeline.grain.intensity = 3.8;
+  pipeline.grain.animated = true;
 
   return pipeline;
 }

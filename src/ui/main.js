@@ -199,6 +199,16 @@ function boot() {
 
     hud.setActiveLevel(targetId);
     hud.setD9FallbackChecked(d9FallbackEnabled);
+    if (targetId !== 0) {
+      principleGuide.setLevel(targetId);
+    }
+    if (targetId === 14) {
+      consolePanel.setExpanded(true);
+      hud.setConsoleExpanded(true);
+    } else {
+      topologyMap.setExpanded(false);
+      hud.setConsoleExpanded(false);
+    }
 
     if (audioUnlocked) {
       sfx.stopAmbience();
@@ -225,7 +235,7 @@ function boot() {
     },
     onToggleGuide: () => {
       unlockAudioOnce();
-      if (activeLevelId === 14) {
+      if (activeLevelId !== 0) {
         principleGuide.toggle();
       }
     },
@@ -302,7 +312,7 @@ function boot() {
       if (activeLevelId === 0) activeRuntime?.skip?.();
     },
     onToggleGuide: () => {
-      if (activeLevelId === 14) principleGuide.toggle();
+      if (activeLevelId !== 0) principleGuide.toggle();
     },
     onToggleHonestView: () => activeRuntime?.toggleTab?.(),
     onToggleConsole: () => {
@@ -338,6 +348,7 @@ function boot() {
     let firstWaveCoached = false;
     let firstNeighborCoached = false;
     let riftAwakeAnnounced = false;
+    let activeCalloutAnchorKind = null;
 
     let state = null;
     let scene3D = null;
@@ -483,17 +494,25 @@ function boot() {
       if (levelId === 2) {
         if (!firstNeighborCoached && res.to !== 'W+' && res.to !== 'W-') {
           firstNeighborCoached = true;
+          activeCalloutAnchorKind = 'wMinusDoor';
+          hud.showSliceCallout(5800, '发现对跖室 W− 入口');
           voice.speak('linxia', '看！隔壁房间的六扇门里，出现了标着 W− 的门！', { durationMs: 5600 });
         } else if (res.to === 'W-' && !state.hasPickedLocator) {
+          activeCalloutAnchorKind = 'locator';
+          hud.showSliceCallout(5800, '林夏定位器 · 按 E 拾取');
           voice.speak('linxia', '你飞进对跖室 W− 了！靠近中央的发光定位器按 E 拾取它。', { durationMs: 5600 });
         }
       } else if (levelId === 3) {
         if (res.to === 'W+') {
           if (state.isGyroAlignedForLock()) {
             sfx.playGyroChime(true);
+            activeCalloutAnchorKind = 'gyro';
+            hud.showSliceCallout(6200, '空间曲率偏转 +90° · 按 E 嵌入');
             voice.speak('linxia', '看你手里的陀螺！它自己转过了 90° 指向上方！靠近底座按 E 嵌入共振锁吧！', { durationMs: 6500 });
           } else if (state.isGyroReversedInWPlus()) {
             sfx.playGyroChime(false);
+            activeCalloutAnchorKind = 'gyro';
+            hud.showSliceCallout(5800, '偏转 −90° · 反向绕行即可指天');
             voice.speak('linxia', '指针转了负 90°，方向刚好反了！按 W+ → X+ → Y+ → W+ 反方向绕三间房一圈就会指天。', { durationMs: 6600 });
           }
         }
@@ -511,6 +530,8 @@ function boot() {
           riftAwakeAnnounced = true;
           sfx.playVictory();
           hud.flashEdge(PALETTE.accent.platinum);
+          activeCalloutAnchorKind = 'riftSphere';
+          hud.showSliceCallout(6800, '8/8 回路闭环 · 飞入水银裂隙');
           voice.speak('linxia', '八盏星环全部点亮！中央的水银裂隙镜面球苏醒了——飞进去，冲破三维外壳！', { durationMs: 7000 });
         }
       }
@@ -537,8 +558,9 @@ function boot() {
       },
       requestHint: () => {
         if (levelId === 0) return;
-        const res = hints.requestNextHint();
-        const tierNames = ['现象提醒', '思考方向', '明确解法'];
+        const phase = state.getCurrentPuzzlePhase ? state.getCurrentPuzzlePhase() : null;
+        const res = phase ? hints.requestContextHint(phase) : hints.requestNextHint();
+        const tierNames = ['思路启发', '观察方向', '明确解法'];
         voice.speak(res.speaker, res.text, {
           tierLabel: `${res.tier}级·${tierNames[Math.min(res.tier - 1, 2)]}`,
           durationMs: 8400,
@@ -550,6 +572,8 @@ function boot() {
         sfx.playWaveChime();
         if (!firstWaveCoached) {
           firstWaveCoached = true;
+          activeCalloutAnchorKind = 'silhouette';
+          hud.showSliceCallout(6200, '同侧同步挥手 · 你的后背');
           voice.speak('linxia', '看见了吗？远处 24 米外的背影也在左侧同步举起了左手——那不是镜子，那是你自己的后背！', { durationMs: 7200 });
         }
         announceBeat();
@@ -595,6 +619,7 @@ function boot() {
           if (state.canPickupLocator()) {
             state.pickupLocator();
             sfx.playBeatUnlock(2);
+            hud.hideSliceCallout();
             hud.flashEdge(PALETTE.accent.goldWPos);
             voice.speak('linxia', '拿到定位器了！快在拓扑校验锁上回答两步走法总数吧！', { durationMs: 5600 });
             announceBeat();
@@ -617,6 +642,7 @@ function boot() {
           }
           const res = state.tryEmbedGyroInLock();
           if (res.unlocked) {
+            hud.hideSliceCallout();
             announceBeat();
           } else if (res.reason === 'reversed_90') {
             sfx.playBlocked();
@@ -632,6 +658,7 @@ function boot() {
           }
           if (state.riftSphereAwakened && state.cellId === 'W+') {
             state.enterRiftSphere();
+            hud.hideSliceCallout();
             announceBeat();
           } else {
             hud.showBlockToast(`当前已点亮 ${state.litBeaconCount}/8 盏星环信标，全部点亮并回到 W+ 即可激活裂隙球`);
@@ -647,6 +674,7 @@ function boot() {
         firstWaveCoached = false;
         firstNeighborCoached = false;
         riftAwakeAnnounced = false;
+        activeCalloutAnchorKind = null;
         teleporterOpen = false;
         hud.resetBanner();
         hud.closeCh1Modal(true);
@@ -655,7 +683,8 @@ function boot() {
         playOpening();
       },
       stepFrame: (dtSec, shouldRender = true) => {
-        if (!paused && !ch1ModalOpen && !teleporterOpen) {
+        if (!paused && !guideOpen && !ch1ModalOpen && !teleporterOpen) {
+          const curPhase = state.getCurrentPuzzlePhase ? state.getCurrentPuzzlePhase() : null;
           if (levelId === 0) {
             const p = state.update(dtSec);
             if (p.triggerVoice) {
@@ -686,11 +715,18 @@ function boot() {
               }
               if (res.justLooped) {
                 sfx.playBeatUnlock(2);
+                activeCalloutAnchorKind = 'leftStatue';
+                hud.showSliceCallout(5800, '每跨 1 室刚性转 90° · 4 室回原点');
                 voice.speak('linxia', '脚下的红丝带又出现了！笔直走满四间房就会绕回起点 W+！', { durationMs: 6200 });
+              }
+              if (res.enteredPortal) {
+                sfx.playVictory();
+                loadLevel(2);
+                return;
               }
               announceBeat();
             }
-            hints.update(dtSec, state.beat, state.completed);
+            hints.update(dtSec, state.beat, state.completed, curPhase);
           } else if (levelId >= 2 && levelId <= 4) {
             const mv = input.sampleMoveVector(dtSec);
             if (mv.roll !== 0) {
@@ -704,7 +740,7 @@ function boot() {
             if (levelId === 4 && res.enteredRift) {
               announceBeat();
             }
-            hints.update(dtSec, state.beat, state.completed);
+            hints.update(dtSec, state.beat, state.completed, curPhase);
           }
         }
 
@@ -714,6 +750,11 @@ function boot() {
         } else {
           scene3D.syncFromState(state, dtSec);
         }
+
+        const worldCalloutAnchor =
+          activeCalloutAnchorKind && scene3D.getAnchorScreenPos
+            ? scene3D.getAnchorScreenPos(activeCalloutAnchorKind, camera)
+            : null;
 
         // Render F-key 8-Cell Holographic Topology Map & Sync HUD
         if (levelId === 0) {
@@ -736,7 +777,7 @@ function boot() {
               currentCell: currCell,
               visitedSet: new Set(['W+', 'X+', 'W-', 'X-'].slice(0, state.visitedRoomIndices.size)),
               trail: ['W+', 'X+', 'W-', 'X-', 'W+'],
-              subLabel: `直线闭环 4 间 · 当前 ${currCell}`,
+              subLabel: `直线闭合回廊 · 当前 ${currCell}`,
             },
             dtSec
           );
@@ -744,22 +785,23 @@ function boot() {
             levelId: 1,
             badgeTitle: `正八胞体三维边界 · 舱室 ${currCell}`,
             badgeDetail: state.completed
-              ? '密码校验通过 · 六向圆形气闸门已解锁'
-              : '观察前方 24m 背影与窗外雕像朝向变化',
+              ? '前方翡翠气闸传送门已敞开 · 穿门直达第 2 关'
+              : '观察前方 24m 宇航员背影与左右窗外雕像朝向',
             dotColor: state.completed ? PALETTE.accent.emerald : CELL_COLORS[currCell],
             telemetryA: `CELL ${currCell} · 累计直线前行 ${state.unwrappedZ.toFixed(1)}m`,
-            telemetryB: `回廊周长 24.0m (4 间循环) · 已访问 ${state.visitedRoomIndices.size}/4 段`,
+            telemetryB: `已观测区段 ${state.visitedRoomIndices.size}/4 · ${state.hasWaved ? '已验证同侧自像' : '按 G/左键 挥左手试探'}`,
             telemetryAccent: state.completed ? PALETTE.accent.emerald : '',
             beat: state.beat,
             hintSnapshot: hints.getSnapshot(),
             telescopeActive: state.telescopeActive,
             reticlePrompt: near ? near.label : '',
+            worldCalloutAnchor,
             controlHtml:
-              'WASD 行走 · 点击/拖拽环视 · <strong>左键/G 举左手挥手</strong> · <strong>E</strong> 交互 · <strong>Tab</strong> 望远镜 · <strong>F</strong> 拓扑图 · <strong>H</strong> 提示',
+              'WASD 行走 · 拖拽环视 · <strong>左键/G 挥左手</strong> · <strong>E</strong> 交互 · <strong>Tab</strong> 望远镜 · <strong>F</strong> 拓扑图 · <strong>H</strong> 提示 · <strong>I</strong> 原理',
             completed: state.completed,
             victory: {
               badge: '第 1 关通关 · 直线闭环规律已掌握',
-              copy: '四间房构成周长 24 米的闭合大圆环路（周期为 4），因此第 9 间与第 1 间完全一致。六向圆形气闸门已为你开启！',
+              copy: '四间房构成周长 24 米的闭合大圆环路（周期为 4），第 9 间与第 1 间完全一致。前方<strong>翡翠气闸传送门</strong>已为你敞开，直接走进去即可进入第 2 关！',
               nextLabel: '进入第 2 关 · 没有门通向对面 →',
             },
           });
@@ -795,7 +837,7 @@ function boot() {
                 ? '按 E 回答“两步到达 W− 的走法总数”'
                 : currCell === 'W-'
                   ? '已抵达对跖室 W− · 靠近中央拾取林夏定位器'
-                  : '寻找没有直达门的对跖室 W− 定位信号',
+                  : '在六扇圆形气闸舱中寻找 W− 定位信号',
             dotColor: state.completed ? PALETTE.accent.emerald : CELL_COLORS[currCell],
             telemetryA: `CELL ${currCell} · 过门次数 ${state.nav.transitCount} · 已探索 ${state.visitedCells.size}/8 室`,
             telemetryB: `对跖盲区 ${ANTIPODAL_CELL[currCell]} · 定位器: ${state.hasPickedLocator ? '已拾取' : '位于 W−'}`,
@@ -804,13 +846,14 @@ function boot() {
             hintSnapshot: hints.getSnapshot(),
             telescopeActive: state.telescopeActive,
             reticlePrompt: prompt,
+            worldCalloutAnchor,
             compass: {
               title: '六向失重罗盘',
               antipodeText: `◎ 对跖盲区: ${ANTIPODAL_CELL[currCell]}`,
               slots,
             },
             controlHtml:
-              'WASD 推进 · <strong>Space/Ctrl</strong> 升降 · <strong>Q/长按E</strong> 滚转 · <strong>短按E</strong> 交互 · <strong>Tab</strong> 望远镜 · <strong>F</strong> 拓扑图 · <strong>H</strong> 提示',
+              'WASD 推进 · <strong>Space/Ctrl</strong> 升降 · <strong>Q/长按E</strong> 滚转 · <strong>短按E</strong> 交互 · <strong>F</strong> 拓扑图 · <strong>H</strong> 提示 · <strong>I</strong> 原理',
             completed: state.completed,
             victory: {
               badge: '第 2 关通关 · 24 条面邻接已点亮',
@@ -832,7 +875,7 @@ function boot() {
               currentCell: currCell,
               visitedSet: new Set(state.loopTrail),
               highlightHolonomyTriangle: true,
-              subLabel: state.holonomyFallback ? 'D9 荧光箭头引导模式' : '共棱三胞 W+·X+·Y+ 角亏 90°',
+              subLabel: state.holonomyFallback ? 'D9 荧光箭头引导模式' : '共棱三胞角亏 90°',
             },
             dtSec
           );
@@ -845,10 +888,10 @@ function boot() {
             levelId: 3,
             badgeTitle: `陀螺棱角舱 · 舱室 ${currCell}${state.holonomyFallback ? '（D9 箭头模式）' : ''}`,
             badgeDetail: state.completed
-              ? '陀螺已嵌入共振锁 · 八室星环解锁'
+              ? '陀螺已嵌入共振锁 · 共振光束贯通金棱'
               : aligned
                 ? '陀螺指针已转过 +90° 指天！靠近 W+ 底座按 E 嵌入'
-                : '绕共用发光金棱的三间房（W+·X+·Y+）飞一圈观察陀螺',
+                : '观察头顶发光金棱与手持锁死陀螺在跨室后的朝向变化',
             dotColor: aligned || state.completed ? PALETTE.accent.emerald : PALETTE.accent.goldWPos,
             telemetryA: `CELL ${currCell} · 路径: ${state.loopTrail.slice(-4).join(' → ')}`,
             telemetryB:
@@ -860,13 +903,14 @@ function boot() {
             hintSnapshot: hints.getSnapshot(),
             telescopeActive: state.telescopeActive,
             reticlePrompt: prompt,
+            worldCalloutAnchor,
             compass: {
               title: '共棱三胞导航',
               antipodeText: `◎ 对跖盲区: ${ANTIPODAL_CELL[currCell]}`,
               slots,
             },
             controlHtml:
-              'WASD 推进 · <strong>Space/Ctrl</strong> 升降 · <strong>Q/长按E</strong> 滚转 · <strong>短按E</strong> 嵌入锁槽 · <strong>Esc</strong> 切换 D9 模式 · <strong>H</strong> 提示',
+              'WASD 推进 · <strong>Space/Ctrl</strong> 升降 · <strong>Q/长按E</strong> 滚转 · <strong>短按E</strong> 嵌入锁槽 · <strong>H</strong> 提示 · <strong>I</strong> 原理',
             completed: state.completed,
             victory: {
               badge: '第 3 关通关 · 四维边界 90° 空间和乐',
@@ -916,13 +960,14 @@ function boot() {
             hintSnapshot: hints.getSnapshot(),
             telescopeActive: state.telescopeActive,
             reticlePrompt: prompt,
+            worldCalloutAnchor,
             compass: {
               title: `哈密顿罗盘 (${state.litBeaconCount}/8)`,
               antipodeText: `◎ 对跖盲区: ${ANTIPODAL_CELL[currCell]}`,
               slots,
             },
             controlHtml:
-              'WASD 推进 · <strong>Space/Ctrl</strong> 升降 · <strong>★ 未访问 / ✗ 已访问 / ◈ 闭环回 W+</strong> · <strong>R</strong> 重置 · <strong>F</strong> 拓扑图 · <strong>H</strong> 提示',
+              'WASD 推进 · <strong>Space/Ctrl</strong> 升降 · <strong>★ 未访问 / ✗ 已访问 / ◈ 闭环回 W+</strong> · <strong>R</strong> 重置 · <strong>H</strong> 提示 · <strong>I</strong> 原理',
             completed: state.completed,
             hideVictoryBanner: teleporterOpen,
           });
@@ -939,6 +984,8 @@ function boot() {
         toggleTab: () => runtime.toggleTab(),
         requestHint: () => runtime.requestHint(),
         reset: () => runtime.reset(),
+        showGuide: () => principleGuide.show(),
+        dismissGuide: () => principleGuide.hide(),
         forceTransitTo: (cellId) => {
           if (state.forceTransitTo) {
             const res = state.forceTransitTo(cellId);

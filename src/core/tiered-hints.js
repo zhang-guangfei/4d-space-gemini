@@ -231,6 +231,111 @@ export const LEVEL14_PHASE_HINTS = Object.freeze({
   ],
 });
 
+/**
+ * Context-aware Socratic phase hint ladders for Chapter 1 (Levels 1–4).
+ * Ensures pressing H ALWAYS matches the exact situation on screen (matching & exceeding Level 14!).
+ */
+export const CHAPTER1_PHASE_HINTS = Object.freeze({
+  1: {
+    initial: [
+      { speaker: 'linxia', text: '先按 G 或点击左键朝前方挥挥左手——仔细看 24 米外那个背影举的是哪只手？' },
+      { speaker: 'linxia', text: '往前走走看，顺便数一数：脚下的红丝带每隔几间房会重新出现一次？' },
+      { speaker: 'linxia', text: '一直沿直线走 4 间房就能绕回起点 W+，再在右侧密码锁输入第 9 间左窗铜像的朝向。' },
+    ],
+    observed_corridor: [
+      { speaker: 'linxia', text: '继续笔直往前走，同时留意左侧舷窗外的铜色雕像——每跨过一扇门，它转了多少度？' },
+      { speaker: 'linxia', text: '我数过自己走过的房间……每走过 4 间，脚下的红丝带就会重新出现，雕像也刚好转回原样。' },
+      { speaker: 'linxia', text: '走满 4 间回到起点 W+，靠近右侧金色主控密码锁按 E，按周期 4 推算出第 9 间左窗雕像朝向。' },
+    ],
+    looped_away: [
+      { speaker: 'linxia', text: '你已经发现 4 间一循环的规律了！继续往前走回到地上系着红丝带的 W+ 舱室。' },
+      { speaker: 'linxia', text: '回到 W+ 后，先看一眼左窗外铜色雕像现在的朝向，再走到右前方的金色主控密码锁旁按 E。' },
+      { speaker: 'linxia', text: '第 1 间与第 5 间、第 9 间完全一致！回到红丝带所在的 W+，按 E 打开密码锁选择「面向走廊内侧（→）」。' },
+    ],
+    looped_at_origin: [
+      { speaker: 'linxia', text: '每 4 间房一个循环——那第 5 间、第 9 间，会和脚下红丝带所在的第几间房完全一样呢？' },
+      { speaker: 'linxia', text: '第 9 间 = 第 1 间（W+）！看看你左手边舷窗外铜色雕像现在的朝向，走向右前方金色锁台按 E。' },
+      { speaker: 'linxia', text: '靠近 W+ 右前方的金色主控密码锁按 E，选择「面向走廊内侧（→）」即可开启前方气闸传送门！' },
+    ],
+    completed: [
+      { speaker: 'linxia', text: '前方圆形气闸传送门已经敞开！直接走进去，或点击按钮进入第 2 关。' },
+    ],
+  },
+  2: {
+    in_wplus: [
+      { speaker: 'linxia', text: '数一数你周围一共有几扇门？一个三维立方体只有 6 个面，所以第 8 间房 W− 不可能直连 W+。' },
+      { speaker: 'linxia', text: '既然没有直达门，不妨随便挑一扇门（比如正前方的 X+）飞进隔壁房间看看？' },
+      { speaker: 'linxia', text: '按 W 飞进正前方 X+ 舱室，在那里就能看见通向对跖室 W− 的舱门，两步即可抵达！' },
+    ],
+    in_neighbor: [
+      { speaker: 'linxia', text: '环顾这个隔壁房间的六扇门——哪一扇门牌上亮着「W− · 林夏定位信号」？' },
+      { speaker: 'linxia', text: '正前方或侧面就有一扇直通 W− 的气闸门！瞄准标着 W− 的发光门环飞进去。' },
+      { speaker: 'linxia', text: '穿过标着 W− 的舱门进入对跖室，靠近中央发光的定位器按 E 拾取它。' },
+    ],
+    in_wminus: [
+      { speaker: 'linxia', text: '你已经抵达对跖室 W− 了！靠近房间中央悬浮旋转的发光定位器，按 E 拾取它。' },
+      { speaker: 'linxia', text: '拾取定位器后，想一想：W+ 一共有几个相邻房间，每个邻居是否都能一步直通 W−？' },
+      { speaker: 'linxia', text: '按 E 拾取定位器，在校验锁上选择「6 条路径」即可点亮全部 24 条拓扑连线。' },
+    ],
+    has_locator: [
+      { speaker: 'linxia', text: '定位器已连接！想想看：从 W+ 出发有几扇门？穿过其中任意一扇，是否都能一步直通 W−？' },
+      { speaker: 'linxia', text: 'W+ 有 6 个面邻接房间（X±、Y±、Z±），每一个邻居都直接连着对面的 W−。' },
+      { speaker: 'linxia', text: '按 E 打开拓扑校验锁，选择「6 条路径」即可完成校验并开启通往第 3 关的传送门！' },
+    ],
+    completed: [
+      { speaker: 'linxia', text: '24 条拓扑连线已经全部点亮！准备进入第 3 关探索四维边界的空间曲率。' },
+    ],
+  },
+  3: {
+    initial: [
+      { speaker: 'linxia', text: '抬头看那条闪着金光的公共棱——在四维边界上，这条棱周围一共只围着几间房？' },
+      { speaker: 'linxia', text: '三个立方体共棱（3 × 90° = 270°），比完整一圈少了 90°！试着带着陀螺绕这条金棱飞一圈看看？' },
+      { speaker: 'linxia', text: '按 W 飞入正前方 X+ → 按 Space 向上飞入 Y+ → 再按 S 后退回 W+，陀螺就会自己转过 +90°！' },
+    ],
+    exploring: [
+      { speaker: 'linxia', text: '注意看你走过的路径和头顶发金光的共享棱——沿着共享金棱围成的三间房（W+、X+、Y+）飞回起点 W+！' },
+      { speaker: 'linxia', text: '顺着发光金色导引环继续走：从 X+ 按 Space 升入 Y+，再从 Y+ 穿过标着 W+ 的门回到起点。' },
+      { speaker: 'linxia', text: '完整闭环路径是 W+ → X+ → Y+ → W+（共 3 次过门）。回到 W+ 后观察右手陀螺偏角并按 E 嵌入锁槽。' },
+    ],
+    returned_reversed: [
+      { speaker: 'linxia', text: '你看陀螺确实靠空间曲率自己偏转了 90°，只是绕行方向刚好反了（−90° 朝下）！' },
+      { speaker: 'linxia', text: '如果刚才先去了 Y+ 再去 X+，这次试着反方向绕同一条金棱飞一圈！' },
+      { speaker: 'linxia', text: '先按 W 进 X+ → 按 Space 升入 Y+ → 按 S 回到 W+，指针就会逆转校准到 +90° 指天！' },
+    ],
+    returned_aligned: [
+      { speaker: 'linxia', text: '陀螺指针已经精确对准上方 +90°（翠绿高光）！直接按 E 将它嵌入 W+ 共振锁底座即可解锁！' },
+      { speaker: 'linxia', text: '现在就在 W+ 舱室内按 E 键，把校准好的陀螺嵌入共振锁！' },
+      { speaker: 'linxia', text: '按下键盘 E 键嵌入陀螺，启动共振光束进入第 4 关！' },
+    ],
+    completed: [
+      { speaker: 'linxia', text: '共振锁已彻底解锁！点击进入第 4 关，迎接八胞体外壳的终极试炼。' },
+    ],
+  },
+  4: {
+    exploring: [
+      { speaker: 'linxia', text: '每飞入一间标着 ★ 的新房，穹顶星环就会点亮。先想好一件事：哪一间房绝对不能留到最后第 8 间？' },
+      { speaker: 'linxia', text: '还记得第 2 关吗？W− 没有门能一步回到起点 W+！所以一定要在中途（第 4 或第 5 步）先穿过 W−。' },
+      { speaker: 'linxia', text: '推荐一笔画路线：W+ → X+ → Y+ → Z+ → W− → X− → Y− → Z− → W+。' },
+    ],
+    near_complete: [
+      { speaker: 'linxia', text: '你已经点亮超过一半星环了！瞄准罗盘上标着 ★ 的未访问房间，确保最后一步能从相邻房直接回 W+。' },
+      { speaker: 'linxia', text: '只剩最后几间标着 ★ 的房间了——避开标着 ✗ 的已访问门，最后从标着 ◈ W+ 的门闭环！' },
+      { speaker: 'linxia', text: '全部 8 间房点亮后，门牌会亮起翠绿 ◈ W+，飞回 W+ 即可唤醒中央液态水银裂隙球！' },
+    ],
+    antipode_trap: [
+      { speaker: 'linxia', text: '你正好落在对跖室 W−，而它没有直达门能回到起点 W+！按 R 零惩罚重置，把 W− 安排在路径中段先走掉。' },
+      { speaker: 'linxia', text: '按 R 重置后，可以按 W+ → X+ → Y+ → Z+ → W− 的顺序在中途穿过 W−，再依次走完 X− → Y− → Z− 回 W+。' },
+      { speaker: 'linxia', text: '按 R 键立刻重置起点，然后依次走 X+ → Y+ → Z+ → W− → X− → Y− → Z− → W+ 即可一笔通关！' },
+    ],
+    rift_awakened: [
+      { speaker: 'linxia', text: '全部 8 盏星环已经点亮！中央发光膨胀的液态水银裂隙球就在眼前——直接飞进去（或按 E）冲破三维外壳！' },
+    ],
+    completed: [
+      { speaker: 'linxia', text: '你已经冲破正八胞体外壳，跃入真正的四维内部空间！' },
+    ],
+  },
+});
+
 export class TieredHintController {
   constructor(levelId = 14, options = {}) {
     this.stagnationThresholdSec = options.stagnationThresholdSec ?? STAGNATION_THRESHOLD_SEC;
@@ -316,15 +421,26 @@ export class TieredHintController {
   }
 
   /**
-   * Context-aware hint lookup for Level 14: tracks progressive hint tier per puzzle phase
-   * so pressing H on the North Pedestal ALWAYS addresses restoration, never the opening!
+   * Context-aware hint lookup across BOTH Chapter 1 (Levels 1–4) AND Level 14:
+   * tracks progressive hint tier per puzzle phase so pressing H ALWAYS speaks directly
+   * to what the player is solving right now!
    */
   requestContextHint(phase, { sideViewOpen = false } = {}) {
-    if (this.levelId !== 14) {
+    let list = null;
+    let key = phase || 'initial';
+
+    if (this.levelId === 14) {
+      key = phase === 'tilted' && sideViewOpen ? 'tilted_side_open' : phase;
+      list = LEVEL14_PHASE_HINTS[key] || LEVEL14_PHASE_HINTS.approach;
+    } else if (CHAPTER1_PHASE_HINTS[this.levelId]) {
+      const table = CHAPTER1_PHASE_HINTS[this.levelId];
+      list = table[key] || Object.values(table)[0];
+    }
+
+    if (!list) {
       return this.requestNextHint();
     }
-    const key = phase === 'tilted' && sideViewOpen ? 'tilted_side_open' : phase;
-    const list = LEVEL14_PHASE_HINTS[key] || LEVEL14_PHASE_HINTS.approach;
+
     const prevTier = this.phaseTiers[key] || 0;
     const nextTier = Math.min(prevTier + 1, list.length);
     this.phaseTiers[key] = nextTier;

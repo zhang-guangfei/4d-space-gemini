@@ -336,3 +336,52 @@ test('Zero-G anti-wall-snag airlock funnel: continuous W -> Space -> S flight co
   assert.equal(s.tryEmbedGyroInLock().unlocked, true);
 });
 
+test('Quality Spec v1.0: Chapter 1 context-aware puzzle phases, clean L3 Frame-1 reticle & L1 portal traversal', async () => {
+  const { TieredHintController } = await import('../src/core/tiered-hints.js');
+
+  // Level 1 phases & context-aware H hints + victory portal traversal
+  const s1 = new Level1CorridorState();
+  const h1 = new TieredHintController(1);
+  assert.equal(s1.getCurrentPuzzlePhase(), 'initial');
+  assert.match(h1.requestContextHint(s1.getCurrentPuzzlePhase()).text, /挥挥左手|24/);
+  for (let i = 0; i < 4; i += 1) s1.moveXZ(0, 6.0);
+  assert.equal(s1.getCurrentPuzzlePhase(), 'looped_at_origin');
+  assert.match(h1.requestContextHint(s1.getCurrentPuzzlePhase()).text, /第 9 间|第几间/);
+  assert.equal(s1.submitLockAnswer(0).correct, true);
+  const portalRes = s1.moveXZ(0, 2.3);
+  assert.equal(portalRes.enteredPortal, true);
+
+  // Level 2 phases: in_wplus -> in_neighbor -> in_wminus -> has_locator
+  const s2 = new Level2AntipodalState();
+  const h2 = new TieredHintController(2);
+  assert.equal(s2.getCurrentPuzzlePhase(), 'in_wplus');
+  assert.match(h2.requestContextHint(s2.getCurrentPuzzlePhase()).text, /6 个面|几扇门/);
+  s2.forceTransitTo('X+');
+  assert.equal(s2.getCurrentPuzzlePhase(), 'in_neighbor');
+  s2.forceTransitTo('W-');
+  assert.equal(s2.getCurrentPuzzlePhase(), 'in_wminus');
+  s2.pickupLocator();
+  assert.equal(s2.getCurrentPuzzlePhase(), 'has_locator');
+  assert.match(h2.requestContextHint(s2.getCurrentPuzzlePhase()).text, /定位器已连接|几扇门/);
+
+  // Level 3 clean Frame-1 reticle (not prematurely prompting lock at spawn) + aligned context hint
+  const s3 = new Level3HolonomyState();
+  const h3 = new TieredHintController(3);
+  assert.equal(s3.canInteractLock(), false, 'Frame 1 spawn must not prematurely show lock prompt');
+  assert.equal(s3.getCurrentPuzzlePhase(), 'initial');
+  s3.forceTransitTo('X+');
+  s3.forceTransitTo('Y+');
+  s3.forceTransitTo('W+');
+  assert.equal(s3.getCurrentPuzzlePhase(), 'returned_aligned');
+  assert.equal(s3.canInteractLock(), true);
+  assert.match(h3.requestContextHint(s3.getCurrentPuzzlePhase()).text, /嵌入|\+90°/);
+
+  // Level 4 antipode trap phase hint
+  const s4 = new Level4HamiltonianState();
+  const h4 = new TieredHintController(4);
+  for (const id of ['X+', 'Y+', 'Z+', 'X-', 'Y-', 'Z-', 'W-']) {
+    s4.forceTransitTo(id);
+  }
+  assert.equal(s4.getCurrentPuzzlePhase(), 'antipode_trap');
+  assert.match(h4.requestContextHint(s4.getCurrentPuzzlePhase()).text, /按 R|对跖室/);
+});

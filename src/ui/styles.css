@@ -1126,12 +1126,18 @@ body.zone-a .modal-card {
   border-color: rgba(154, 165, 180, 0.36);
 }
 
-/* Hide Chapter 2/C-Zone-only widgets cleanly when in Chapter 1 */
+/* Hide Chapter 2/C-Zone-only widgets cleanly when in Chapter 1 (KEEP #btn-guide LIVE on ALL levels!) */
 body.mode-ch1 #w-ruler-box,
 body.mode-ch1 #side-view-panel,
-body.mode-ch1 #tab-entry-pill,
-body.mode-ch1 #btn-guide {
+body.mode-ch1 #tab-entry-pill {
   display: none !important;
+}
+
+body.zone-a .slice-callout-tag {
+  background: rgba(13, 21, 33, 0.92);
+  border-color: rgba(77, 230, 211, 0.72);
+  color: #f4f8fc;
+  box-shadow: 0 8px 24px rgba(8, 16, 28, 0.42);
 }
 
 body.is-prologue #hud-root {
@@ -1139,9 +1145,9 @@ body.is-prologue #hud-root {
 }
 
 body.zone-a .subtitle-bar {
-  top: 14px;
-  left: 50%;
-  max-width: min(470px, 42vw);
+  top: 12px;
+  left: 44.5%;
+  max-width: min(450px, 35.5vw);
   padding: 8px 14px;
   background: rgba(14, 21, 32, 0.92);
   border-color: rgba(77, 230, 211, 0.4);

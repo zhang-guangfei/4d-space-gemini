@@ -46,6 +46,11 @@ export class TacticalConsole {
     }
   }
 
+  setExpanded(expanded) {
+    this.setCollapsed(!expanded);
+    return !this.collapsed;
+  }
+
   render(state) {
     // 1. Update Vertical W Phase Ruler (always visible)
     const w = state.playerPos[3];

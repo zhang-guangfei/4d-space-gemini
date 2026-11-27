@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 """
-Beyond 3D — Real-Gameplay Quality Audit Harness (`npm run audit:playtest`)
+Beyond 3D — Real-Gameplay & Quality Spec v1.0 Compliance Audit (`npm run audit:playtest`)
 
-Unlike unit tests or debug-state teleports, this script drives the live 3D game
-in headless Chromium using REAL keyboard (`W/A/S/D`, `Space`, `Ctrl`, `E`, `Tab`, `H`)
-and REAL mouse drags/clicks to evaluate actual player experience across 6 QA pillars:
-  1. First-Impression Framing & Readability (landmark visibility, HUD non-overlap)
-  2. Real Control Feel & Spatial Navigation (actually walking/flying through doors!)
-  3. Visual Craft & Spatial Depth (contrast, porthole statue visibility, edge & gyro clarity)
-  4. Cognitive Chain & "Aha!" Moment (seeing the 4D phenomenon before solving)
-  5. Interactive Flow & Context Hints (E interactions, modals, H hints, R reset)
-  6. Technical Stability (0 console/page errors, scene readiness, clean transitions)
+Drives the live 3D game in headless Chromium using REAL keyboard (`W/A/S/D`, `Space`, `E`, `G`,
+`H`, `I`, `Esc`) and REAL mouse drags to enforce BOTH real-input playability AND every quantitative
+bar defined in `docs/design/quality-spec-v1.md` (benchmarking Prologue + Levels 1–4 against
+Demo Level 14):
+  1. Rendering & Material Spec (IBL, ACES+Bloom PostProc, EXP2 Fog, GPU Particles, PBR, L1 Mirror & Shadows)
+  2. Zero-Spoiler Frame-1 Framing (F-map collapsed by default, L3 clean spawn reticle, L3 3/3 gold edges, L4 ★ X+)
+  3. Real-Input Navigation & Anti-Wall-Snag Mechanics (L1 24m walk, L2 W- landing, L3 W->Space->S +90° unlock, L4 X+)
+  4. Interactive 3D Principle Guide (`I` key) live & rendering on ALL Levels (1, 2, 3, 4 & 14)
+  5. Context-Aware `H` Hint Ladder reacting to the player's exact current puzzle phase
+  6. Technical Stability (strictly 0 console/page errors)
 """
 
 import base64
@@ -36,14 +37,14 @@ def wait_scene_ready(page, max_steps=18):
         ready = page.evaluate("""() => {
             const b = window.__BEYOND3D__;
             if (!b || !b.scene) return false;
-            b.stepFrame(0.016);
+            b.stepFrame(0.016, false);
             return b.scene.isReady();
         }""")
         if ready:
-            page.evaluate("() => window.__BEYOND3D__.stepFrame(0.016)")
+            page.evaluate("() => window.__BEYOND3D__.stepFrame(0.016, true)")
             return True
-        time.sleep(0.06)
-    page.evaluate("() => window.__BEYOND3D__.stepFrame(0.016)")
+        time.sleep(0.04)
+    page.evaluate("() => window.__BEYOND3D__.stepFrame(0.016, true)")
     return False
 
 
@@ -60,7 +61,6 @@ def step_frames(page, count, dt=1 / 30, render_last=True):
 
 
 def real_hold_key(page, code, frames, dt=1 / 30):
-    """Hold a real keyboard key and step real 60/30Hz simulation frames."""
     page.keyboard.down(code)
     step_frames(page, frames, dt, render_last=False)
     page.keyboard.up(code)
@@ -68,7 +68,6 @@ def real_hold_key(page, code, frames, dt=1 / 30):
 
 
 def real_mouse_drag(page, dx, dy, steps=6):
-    """Drag real mouse on the canvas to rotate FPS / Zero-G camera view."""
     cx, cy = 640, 360
     page.mouse.move(cx, cy)
     page.mouse.down(button="left")
@@ -87,8 +86,77 @@ def snap(cdp, out_dir, filename):
     return str(path)
 
 
+def collect_quality_spec_metrics(page):
+    """Collect quantitative Quality Spec v1.0 compliance telemetry for the active level."""
+    return page.evaluate("""() => {
+        const b = window.__BEYOND3D__;
+        const s = b.scene;
+        const mats = s.materials.map(m => m.getClassName ? m.getClassName() : 'unknown');
+        const shadowGens = s.lights.filter(l => l.getShadowGenerator && l.getShadowGenerator()).length;
+        const mirrorTex = s.textures
+          ? s.textures.filter(t => (t.getClassName && t.getClassName().includes('Mirror')) || Boolean(t.mirrorPlane)).length
+          : 0;
+        const particles = s.particleSystems ? s.particleSystems.length : 0;
+        const postProcs = s.postProcessRenderPipelineManager?._renderPipelines
+          ? Object.keys(s.postProcessRenderPipelineManager._renderPipelines)
+          : [];
+        const guideBtn = document.getElementById('btn-guide');
+        const guideBtnVisible = !!guideBtn && getComputedStyle(guideBtn).display !== 'none';
+        const tacWrapper = document.getElementById('tactical-wrapper');
+        const tacBody = document.getElementById('tactical-body');
+        const tacWidth = tacBody ? tacBody.getBoundingClientRect().width : 0;
+        const topologyCollapsed = !!tacWrapper && tacWrapper.classList.contains('is-collapsed') && tacWidth <= 2;
+        const subEl = document.getElementById('subtitle-bar');
+        let subtitleOverlapsGuide = false;
+        if (subEl && guideBtnVisible && subEl.classList.contains('is-visible')) {
+            const sr = subEl.getBoundingClientRect();
+            const gr = guideBtn.getBoundingClientRect();
+            subtitleOverlapsGuide = sr.right > gr.left - 2 && sr.bottom > gr.top && sr.top < gr.bottom;
+        }
+        return {
+            levelId: b.levelId,
+            meshCount: s.meshes.length,
+            pbrCount: mats.filter(x => x.includes('PBR')).length,
+            stdCount: mats.filter(x => x.includes('Standard')).length,
+            lightCount: s.lights.length,
+            envTex: !!s.environmentTexture,
+            fogMode: s.fogMode,
+            mirrorTex,
+            shadowGens,
+            particles,
+            postProcs,
+            guideBtnVisible,
+            topologyCollapsed,
+            tacWidth,
+            subtitleOverlapsGuide,
+        };
+    }""")
+
+
+def verify_principle_guide(page, cdp, out_dir, snap_name=None):
+    """Press real I key, confirm modal opens with non-empty 3D canvas & custom level title, then close."""
+    page.keyboard.press("KeyI")
+    time.sleep(0.08)
+    info = page.evaluate("""() => {
+        const modal = document.getElementById('principle-modal');
+        const title = document.getElementById('principle-title')?.textContent || '';
+        const canvas = document.getElementById('principle-analogy-canvas');
+        return {
+            open: !!modal && !modal.hidden,
+            title,
+            canvasW: canvas ? canvas.width : 0,
+            canvasH: canvas ? canvas.height : 0,
+        };
+    }""")
+    if snap_name and info["open"]:
+        snap(cdp, out_dir, snap_name)
+    if info["open"]:
+        page.keyboard.press("Escape")
+        time.sleep(0.05)
+    return info
+
+
 def check_mesh_screen_visibility(page, mesh_name_substr):
-    """Check whether any mesh matching substring projects inside the 1280x720 viewport in front of camera."""
     return page.evaluate(
         """(sub) => {
             const b = window.__BEYOND3D__;
@@ -120,109 +188,104 @@ def check_mesh_screen_visibility(page, mesh_name_substr):
 
 
 def audit_prologue(page, cdp, out_dir, report):
-    print("\n=== [PLAYTEST 0] Prologue: 迷航 ===")
+    print("\n=== [PLAYTEST 0] Prologue: 迷航 (AAA Cinematic Cockpit + 4D Tesseract) ===", flush=True)
     page.goto(f"{BASE_URL}?level=0", wait_until="domcontentloaded")
-    page.wait_for_function("() => Boolean(window.__BEYOND3D__?.engine)", timeout=20000)
+    page.wait_for_function("() => Boolean(window.__BEYOND3D__?.engine)", timeout=25000)
     page.evaluate("() => window.__BEYOND3D__.engine.stopRenderLoop()")
     wait_scene_ready(page)
 
-    # Early warp alarm with starfield intact
+    spec = collect_quality_spec_metrics(page)
     step_frames(page, 10, 0.2)
     snap(cdp, out_dir, "pt_00a_warp_stars.png")
-    # Mid sequence: stars extinguishing + 4D wireframe emerging + Lin Xia voice
     step_frames(page, 25, 0.3)
     snap(cdp, out_dir, "pt_00b_grid_emerge.png")
 
-    # Test real Space key to skip prologue -> Level 1
     page.keyboard.press("Space")
     step_frames(page, 2, 0.05)
     lvl = page.evaluate("() => window.__BEYOND3D__.levelId")
     report["levels"]["0"] = {
+        "spec": spec,
         "spaceSkipToLevel1": lvl == 1,
-        "notes": "Real Space key cleanly skipped Prologue into Level 1" if lvl == 1 else f"FAILED: stayed on {lvl}",
     }
-    print(f"  Space skip -> Level {lvl}")
+    print(f"  Prologue spec: PBR={spec['pbrCount']}, IBL={spec['envTex']}, Fog={spec['fogMode']}, Particles={spec['particles']}, PostProc={spec['postProcs']}", flush=True)
 
 
 def audit_level1(page, cdp, out_dir, report):
-    print("\n=== [PLAYTEST 1] Level 1: 前方的人 (Real WASD + Mouse Look + Wave + Statues + Lock) ===")
+    print("\n=== [PLAYTEST 1] Level 1: 前方的人 (Mirror Floor + Shadows + Sculpted Statues + I-Guide) ===", flush=True)
     wait_scene_ready(page)
+    spec = collect_quality_spec_metrics(page)
     snap(cdp, out_dir, "pt_01a_entry_view.png")
 
-    # 1. Real mouse look LEFT toward the copper-bronze statue outside left porthole in Room 1 (W+)
+    # Verify I-key Interactive 3D Principle Card on Level 1!
+    guide_l1 = verify_principle_guide(page, cdp, out_dir, "pt_01f_principle_card.png")
+
+    # 1. Real mouse look LEFT toward sculpted copper-bronze statue outside left porthole in W+
     real_mouse_drag(page, -340, 0, steps=8)
     snap(cdp, out_dir, "pt_01b_room1_left_statue.png")
-    # Look back straight ahead (+340)
     real_mouse_drag(page, 340, 0, steps=8)
 
-    # 2. Real left-click / G key wave and capture synced 24m silhouette
+    # 2. Real G key wave -> triggers synced 24m silhouette + 3D world-space callout!
     page.keyboard.press("KeyG")
     step_frames(page, 14, 1 / 30)
     snap(cdp, out_dir, "pt_01c_real_wave.png")
     wave_beat = page.evaluate("() => window.__BEYOND3D__.state.beat")
 
-    # 3. Walk straight forward with REAL W key across Room 1 -> Room 2 (X+), look left at statue!
-    real_hold_key(page, "KeyW", 38, 1 / 30)  # ~6m forward into X+!
+    # 3. Walk straight forward with REAL W across Room 1 -> Room 2 (X+)
+    real_hold_key(page, "KeyW", 38, 1 / 30)
     room2 = page.evaluate("() => ({ cell: window.__BEYOND3D__.state.getCellId(), z: window.__BEYOND3D__.state.unwrappedZ })")
     real_mouse_drag(page, -340, 0, steps=8)
     snap(cdp, out_dir, "pt_01d_room2_left_statue.png")
     real_mouse_drag(page, 340, 0, steps=8)
 
-    # 4. Keep walking with REAL W key all the way around the 24m loop back to W+!
-    real_hold_key(page, "KeyW", 118, 1 / 30)  # ~18m more -> back to W+!
+    # 4. Complete full 24m loop back to W+ using REAL W key
+    real_hold_key(page, "KeyW", 118, 1 / 30)
     loop_state = page.evaluate("""() => {
         const s = window.__BEYOND3D__.state;
-        return { cell: s.getCellId(), z: Number(s.unwrappedZ.toFixed(1)), looped: s.hasLoopedBackToOrigin, visited: s.visitedRoomIndices.size, beat: s.beat };
+        return { cell: s.getCellId(), z: Number(s.unwrappedZ.toFixed(1)), looped: s.hasLoopedBackToOrigin, visited: s.visitedRoomIndices.size, beat: s.beat, phase: s.getCurrentPuzzlePhase() };
     }""")
 
-    # 5. Walk over to the right-side Lock Console in W+ using REAL D+W keys and check reticle prompt!
-    # First inspect distance to lock console
-    lock_pos_info = page.evaluate("""() => {
-        const s = window.__BEYOND3D__.state;
-        return { x: s.playerX, lz: s.getLocalZInCell(), near: s.getNearestInteractable() };
-    }""")
+    # 5. Walk to Lock Console -> press E -> press Esc -> press H (context-aware looped_at_origin hint!)
     real_hold_key(page, "KeyD", 14, 1 / 30)
     real_hold_key(page, "KeyW", 12, 1 / 30)
-    near_after = page.evaluate("() => window.__BEYOND3D__.state.getNearestInteractable()")
     snap(cdp, out_dir, "pt_01e_at_lock_console.png")
-
-    # Press real E key to open lock modal!
     page.keyboard.press("KeyE")
     step_frames(page, 3, 1 / 30)
     modal_open = page.evaluate("() => !document.getElementById('ch1-modal').hidden")
-
-    # Test real H hint key (after closing modal cleanly via Esc)
     if modal_open:
         page.keyboard.press("Escape")
         step_frames(page, 2, 1 / 30)
+
     page.keyboard.press("KeyH")
     step_frames(page, 2, 1 / 30)
     hint_text = page.evaluate("() => document.getElementById('subtitle-text').textContent")
 
     report["levels"]["1"] = {
+        "spec": spec,
+        "principleGuide": guide_l1,
         "waveBeat": wave_beat,
         "room2ReachedByRealW": room2,
         "full24mLoopByRealW": loop_state,
-        "lockNearBeforeWalk": lock_pos_info,
-        "lockNearAfterWalk": near_after,
         "realKeyEOpenedLock": modal_open,
         "realKeyHHint": hint_text,
     }
-    print("  L1 real-play telemetry:", json.dumps(report["levels"]["1"], ensure_ascii=False))
+    print(f"  L1 spec: PBR={spec['pbrCount']}, Mirror={spec['mirrorTex']}, Shadow={spec['shadowGens']}, Particles={spec['particles']}, Guide={guide_l1['open']}", flush=True)
 
 
 def audit_level2(page, cdp, out_dir, report):
-    print("\n=== [PLAYTEST 2] Level 2: 没有门通向对面 (Real Zero-G WASD Flight to X+ then W-) ===", flush=True)
+    print("\n=== [PLAYTEST 2] Level 2: 没有门通向对面 (Zero-G Flight + Context Hints + I-Guide) ===", flush=True)
     page.evaluate("() => window.__BEYOND3D__.loadLevel(2)")
     wait_scene_ready(page)
+    spec = collect_quality_spec_metrics(page)
     snap(cdp, out_dir, "pt_02a_wplus_entry.png")
 
-    # Test real H key hint works with 0 errors
+    guide_l2 = verify_principle_guide(page, cdp, out_dir)
+
+    # Context hint in W+ (in_wplus)
     page.keyboard.press("KeyH")
     step_frames(page, 2, 1 / 30)
-    l2_hint = page.evaluate("() => document.getElementById('subtitle-text').textContent")
+    hint_wplus = page.evaluate("() => document.getElementById('subtitle-text').textContent")
 
-    # Fly forward smoothly with REAL W into X+ (tuned speed must NOT overshoot into W-!)
+    # Fly forward smoothly with REAL W into X+
     real_hold_key(page, "KeyW", 58, 1 / 30)
     after_w = page.evaluate("""() => {
         const s = window.__BEYOND3D__.state;
@@ -230,7 +293,7 @@ def audit_level2(page, cdp, out_dir, report):
     }""")
     snap(cdp, out_dir, "pt_02b_entered_xplus.png")
 
-    # Fly forward with REAL W from X+ into W- (must land INSIDE W- near Locator without overshooting into X-!)
+    # Fly forward with REAL W into W- and pick up Locator via REAL E
     real_hold_key(page, "KeyW", 62, 1 / 30)
     after_w2 = page.evaluate("""() => {
         const s = window.__BEYOND3D__.state;
@@ -238,48 +301,55 @@ def audit_level2(page, cdp, out_dir, report):
     }""")
     snap(cdp, out_dir, "pt_02c_entered_wminus.png")
 
-    # Fly slightly closer to W- center if needed, then tap REAL E key to pick up Lin Xia's Locator!
     if after_w2["cell"] == "W-" and not after_w2["canPick"]:
         real_hold_key(page, "KeyW", 18, 1 / 30)
-    can_pick_now = page.evaluate("() => window.__BEYOND3D__.state.canPickupLocator()")
     page.keyboard.press("KeyE")
     step_frames(page, 4, 1 / 30)
     picked = page.evaluate("() => window.__BEYOND3D__.state.hasPickedLocator")
 
+    # Close modal if it auto-opens after 420ms, then press H to verify context-aware `has_locator` hint!
+    time.sleep(0.48)
+    page.keyboard.press("Escape")
+    step_frames(page, 2, 1 / 30)
+    page.keyboard.press("KeyH")
+    step_frames(page, 2, 1 / 30)
+    hint_after_pickup = page.evaluate("() => document.getElementById('subtitle-text').textContent")
+
     report["levels"]["2"] = {
-        "realKeyHHint": l2_hint,
+        "spec": spec,
+        "principleGuide": guide_l2,
+        "hintInWPlus": hint_wplus,
+        "hintAfterPickup": hint_after_pickup,
         "realFlightToXPlus": after_w,
         "realFlightToWMinus": after_w2,
-        "canPickLocatorAfterFlight": can_pick_now,
         "realKeyEPickedLocator": picked,
     }
-    print("  L2 real-play telemetry:", json.dumps(report["levels"]["2"], ensure_ascii=False), flush=True)
+    print(f"  L2 spec: PBR={spec['pbrCount']}, Particles={spec['particles']}, Guide={guide_l2['open']}, Picked={picked}", flush=True)
 
 
 def audit_level3(page, cdp, out_dir, report):
-    print("\n=== [PLAYTEST 3] Level 3: 哪边是上 (Real Zero-G Flight W+ -> X+ -> Y+ -> W+!) ===", flush=True)
+    print("\n=== [PLAYTEST 3] Level 3: 哪边是上 (Clean Frame 1 + 360° Gyro + W->Space->S +90° + I-Guide) ===", flush=True)
     page.evaluate("() => window.__BEYOND3D__.loadLevel(3)")
     wait_scene_ready(page)
+    spec = collect_quality_spec_metrics(page)
 
-    # Verify Golden Shared 1D Edge is IMMEDIATELY visible on frame 1 at spawn!
     gold_edge_vis_entry = check_mesh_screen_visibility(page, "l3_gold_edge")
-    arrows_vis_entry = check_mesh_screen_visibility(page, "l3_arr_")
+    reticle_clean_entry = page.evaluate("() => !window.__BEYOND3D__.state.canInteractLock()")
     snap(cdp, out_dir, "pt_03a_entry_view.png")
 
-    # Step 1: Fly forward with REAL W into X+
+    guide_l3 = verify_principle_guide(page, cdp, out_dir, "pt_03f_principle_card.png")
+
+    # Step 1: W -> X+
     real_hold_key(page, "KeyW", 68, 1 / 30)
     step1 = page.evaluate("() => ({ cell: window.__BEYOND3D__.state.cellId, trail: window.__BEYOND3D__.state.loopTrail })")
     snap(cdp, out_dir, "pt_03c_inside_xplus.png")
 
-    # Step 2: Inside X+, fly UP with REAL Space into Y+
+    # Step 2: Space -> Y+
     real_hold_key(page, "Space", 75, 1 / 30)
-    step2 = page.evaluate("() => ({ cell: window.__BEYOND3D__.state.cellId, trail: window.__BEYOND3D__.state.loopTrail, pos3: window.__BEYOND3D__.state.nav.getLocalPos3().map(v=>Number(v.toFixed(2))) })")
+    step2 = page.evaluate("() => ({ cell: window.__BEYOND3D__.state.cellId, trail: window.__BEYOND3D__.state.loopTrail })")
     snap(cdp, out_dir, "pt_03d_inside_yplus.png")
 
-    # Step 3: Inside Y+, hold REAL KeyS toward W+ (releasing cleanly just after entering W+, like a human!)
-    compass_yplus = page.evaluate("""() => {
-        return Array.from(document.querySelectorAll('#compass-grid .compass-cell')).map(el => el.textContent.trim());
-    }""")
+    # Step 3: S -> W+ (+90° aligned!)
     page.keyboard.down("KeyS")
     for _ in range(95):
         step_frames(page, 1, 1 / 30, render_last=False)
@@ -288,6 +358,7 @@ def audit_level3(page, cdp, out_dir, report):
             break
     page.keyboard.up("KeyS")
     step_frames(page, 2, 1 / 30, render_last=True)
+
     step3 = page.evaluate("""() => {
         const s = window.__BEYOND3D__.state;
         return {
@@ -296,34 +367,45 @@ def audit_level3(page, cdp, out_dir, report):
             angleDeg: s.getGyroAngleInWPlusDeg(),
             aligned: s.isGyroAlignedForLock(),
             canInteract: s.canInteractLock(),
+            phase: s.getCurrentPuzzlePhase(),
         };
     }""")
     snap(cdp, out_dir, "pt_03e_returned_wplus.png")
 
-    # Tap REAL E key to embed the +90° calibrated gyro into W+ Resonance Lock!
+    # Verify context-aware H hint at `returned_aligned` directly prompts embedding gyro!
+    page.keyboard.press("KeyH")
+    step_frames(page, 2, 1 / 30)
+    hint_aligned = page.evaluate("() => document.getElementById('subtitle-text').textContent")
+
+    # Tap REAL E key to embed calibrated gyro & ignite holonomy victory beam!
     page.keyboard.press("KeyE")
     step_frames(page, 4, 1 / 30)
     unlocked_by_real_e = page.evaluate("() => window.__BEYOND3D__.state.completed")
 
     report["levels"]["3"] = {
+        "spec": spec,
+        "principleGuide": guide_l3,
+        "reticleCleanAtEntry": reticle_clean_entry,
         "goldEdgeVisibleAtEntry": gold_edge_vis_entry,
-        "arrowsVisibleAtEntry": arrows_vis_entry,
         "step1_realW": step1,
         "step2_realSpace": step2,
-        "compassInYPlus": compass_yplus,
         "step3_realBackToWPlus": step3,
+        "hintWhenAligned": hint_aligned,
         "realKeyEUnlocked": unlocked_by_real_e,
     }
-    print("  L3 real-play telemetry:", json.dumps(report["levels"]["3"], ensure_ascii=False), flush=True)
+    print(f"  L3 spec: PBR={spec['pbrCount']}, GoldEdges={gold_edge_vis_entry['visibleCount']}/3, CleanF1={reticle_clean_entry}, Unlocked={unlocked_by_real_e}", flush=True)
 
 
 def audit_level4(page, cdp, out_dir, report):
-    print("\n=== [PLAYTEST 4] Level 4: 一笔走完 (Real Navigation Above Suspended Sphere + Beacons) ===", flush=True)
+    print("\n=== [PLAYTEST 4] Level 4: 一笔走完 (Gleaming Mercury Rift + Beacons + I-Guide) ===", flush=True)
     page.evaluate("() => window.__BEYOND3D__.loadLevel(4)")
     wait_scene_ready(page)
+    spec = collect_quality_spec_metrics(page)
     snap(cdp, out_dir, "pt_04a_entry_view.png")
 
+    guide_l4 = verify_principle_guide(page, cdp, out_dir)
     plaque_vis = check_mesh_screen_visibility(page, "center_cell_plq_+Z")
+
     real_hold_key(page, "KeyW", 72, 1 / 30)
     after_w = page.evaluate("""() => {
         const s = window.__BEYOND3D__.state;
@@ -335,10 +417,21 @@ def audit_level4(page, cdp, out_dir, report):
     snap(cdp, out_dir, "pt_04c_lit_dome_beacon.png")
 
     report["levels"]["4"] = {
+        "spec": spec,
+        "principleGuide": guide_l4,
         "frontPlaquePos": plaque_vis,
         "realFlightToXPlus": after_w,
     }
-    print("  L4 real-play telemetry:", json.dumps(report["levels"]["4"], ensure_ascii=False), flush=True)
+    print(f"  L4 spec: PBR={spec['pbrCount']}, Particles={spec['particles']}, Guide={guide_l4['open']}, X+={after_w['cell']}", flush=True)
+
+
+def audit_level14_baseline(page, report):
+    print("\n=== [BASELINE BENCHMARK] Level 14: 发丝裂缝 (Demo Reference Metrics) ===", flush=True)
+    page.evaluate("() => window.__BEYOND3D__.loadLevel(14)")
+    wait_scene_ready(page)
+    spec14 = collect_quality_spec_metrics(page)
+    report["levels"]["14_baseline"] = {"spec": spec14}
+    print(f"  L14 baseline: PBR={spec14['pbrCount']}, Mirror={spec14['mirrorTex']}, Shadow={spec14['shadowGens']}, Particles={spec14['particles']}, Fog={spec14['fogMode']}", flush=True)
 
 
 def main():
@@ -358,10 +451,7 @@ def main():
             ],
         )
         page = browser.new_page(viewport={"width": 1280, "height": 720})
-        page.on(
-            "console",
-            lambda msg: console_errors.append(msg.text) if msg.type == "error" else None,
-        )
+        page.on("console", lambda msg: console_errors.append(msg.text) if msg.type == "error" else None)
         page.on("pageerror", lambda err: page_errors.append(str(err)))
         cdp = page.context.new_cdp_session(page)
 
@@ -370,28 +460,68 @@ def main():
         audit_level2(page, cdp, DEFAULT_OUT, report)
         audit_level3(page, cdp, DEFAULT_OUT, report)
         audit_level4(page, cdp, DEFAULT_OUT, report)
+        audit_level14_baseline(page, report)
 
         browser.close()
 
     report["consoleErrors"] = console_errors
     report["pageErrors"] = page_errors
 
-    # Hard Real-Gameplay QA Gate Assertions!
+    # Hard Quality Specification v1.0 & Real-Gameplay Gate Assertions!
     failures = []
     if console_errors or page_errors:
         failures.append(f"Runtime errors: console={console_errors}, page={page_errors}")
+
+    # 1. Prologue spec & real input
+    s0 = report["levels"]["0"]["spec"]
     if not report["levels"]["0"]["spaceSkipToLevel1"]:
         failures.append("Prologue: Space key failed to skip into Level 1")
+    if not s0["envTex"] or not s0["postProcs"] or s0["particles"] < 1 or s0["fogMode"] == 0 or s0["pbrCount"] < 4:
+        failures.append(f"Prologue failed Quality Spec v1.0 rendering bar: {s0}")
+
+    # 2. Levels 1-4 shared Quality Spec v1.0 checks
+    for lid in ["1", "2", "3", "4"]:
+        sp = report["levels"][lid]["spec"]
+        if not sp["envTex"] or not sp["postProcs"] or sp["particles"] < 1 or sp["fogMode"] == 0 or sp["pbrCount"] < 6:
+            failures.append(f"Level {lid} failed Quality Spec v1.0 rendering bar: {sp}")
+        if not sp["guideBtnVisible"]:
+            failures.append(f"Level {lid}: I-key Principle Guide button is NOT visible!")
+        if not sp["topologyCollapsed"]:
+            failures.append(f"Level {lid}: F-key topology map should default collapsed for zero-spoiler Frame 1 (width={sp['tacWidth']})!")
+        if sp.get("subtitleOverlapsGuide"):
+            failures.append(f"Level {lid}: Voice subtitle bar overlaps #btn-guide button at 1280x720!")
+        pg = report["levels"][lid]["principleGuide"]
+        if not pg["open"] or pg["canvasW"] < 400:
+            failures.append(f"Level {lid}: Interactive 3D Principle Guide failed to open/render: {pg}")
+
+    # 3. Level 1 extra rendering & real gameplay gates
+    s1 = report["levels"]["1"]["spec"]
+    if s1["mirrorTex"] < 1 or s1["shadowGens"] < 1:
+        failures.append(f"Level 1 must match Level 14 mirror & soft-shadow bar: mirror={s1['mirrorTex']}, shadow={s1['shadowGens']}")
     if not report["levels"]["1"]["full24mLoopByRealW"]["looped"] or not report["levels"]["1"]["realKeyEOpenedLock"]:
         failures.append("Level 1: Real WASD 24m loop or KeyE lock failed")
-    if "红丝带" not in (report["levels"]["1"]["realKeyHHint"] or ""):
-        failures.append(f"Level 1: Real KeyH did not deliver Tier 1 hint: {report['levels']['1']['realKeyHHint']}")
-    if report["levels"]["2"]["realFlightToWMinus"]["cell"] != "W-" or not report["levels"]["2"]["realKeyEPickedLocator"]:
-        failures.append(f"Level 2: Real Zero-G flight to W- or KeyE pickup failed: {report['levels']['2']}")
-    if report["levels"]["3"]["goldEdgeVisibleAtEntry"]["visibleCount"] < 1:
-        failures.append("Level 3: Golden Shared 1D Edge was NOT visible on screen at entry!")
-    if report["levels"]["3"]["step3_realBackToWPlus"]["cell"] != "W+" or not report["levels"]["3"]["realKeyEUnlocked"]:
-        failures.append(f"Level 3: Real 3-room flight W+->X+->Y+->W+ or KeyE unlock failed: {report['levels']['3']}")
+    if "第 9 间" not in (report["levels"]["1"]["realKeyHHint"] or "") and "红丝带" not in (report["levels"]["1"]["realKeyHHint"] or ""):
+        failures.append(f"Level 1: Context-aware KeyH hint mismatch: {report['levels']['1']['realKeyHHint']}")
+
+    # 4. Level 2 real flight + context-aware hints
+    l2 = report["levels"]["2"]
+    if l2["realFlightToWMinus"]["cell"] != "W-" or not l2["realKeyEPickedLocator"]:
+        failures.append(f"Level 2: Real Zero-G flight to W- or KeyE pickup failed: {l2}")
+    if l2["hintInWPlus"] == l2["hintAfterPickup"]:
+        failures.append("Level 2: Context-aware KeyH hint did not adapt after picking up Locator!")
+
+    # 5. Level 3 clean Frame 1 + 3/3 Golden Edges + real 3-room flight + aligned context hint
+    l3 = report["levels"]["3"]
+    if not l3["reticleCleanAtEntry"]:
+        failures.append("Level 3: Premature [E] lock prompt appeared on Frame 1 at spawn!")
+    if l3["goldEdgeVisibleAtEntry"]["visibleCount"] < 3:
+        failures.append(f"Level 3: Expected 3/3 Golden Shared Edges visible at entry: {l3['goldEdgeVisibleAtEntry']}")
+    if l3["step3_realBackToWPlus"]["cell"] != "W+" or not l3["realKeyEUnlocked"]:
+        failures.append(f"Level 3: Real 3-room flight W+->X+->Y+->W+ or KeyE unlock failed: {l3}")
+    if "嵌入" not in (l3["hintWhenAligned"] or "") and "+90°" not in (l3["hintWhenAligned"] or ""):
+        failures.append(f"Level 3: Context-aware KeyH hint at returned_aligned did not address embedding: {l3['hintWhenAligned']}")
+
+    # 6. Level 4 real flight
     if report["levels"]["4"]["realFlightToXPlus"]["cell"] != "X+":
         failures.append(f"Level 4: Real flight to X+ failed: {report['levels']['4']}")
 
@@ -399,11 +529,11 @@ def main():
     report["failures"] = failures
     report_path = DEFAULT_OUT / "playtest_report.json"
     report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"\n✓ Playtest telemetry saved to {report_path}", flush=True)
+    print(f"\n✓ Playtest & Quality Spec v1.0 telemetry saved to {report_path}", flush=True)
     if failures:
-        print("PLAYTEST QUALITY GATES FAILED:\n  - " + "\n  - ".join(failures), flush=True)
+        print("QUALITY SPEC / PLAYTEST GATES FAILED:\n  - " + "\n  - ".join(failures), flush=True)
         sys.exit(1)
-    print("✓ ALL REAL-GAMEPLAY QUALITY GATES PASSED (0 ERRORS)!", flush=True)
+    print("✓ ALL QUALITY SPEC v1.0 & REAL-GAMEPLAY GATES PASSED (0 ERRORS)!", flush=True)
 
 
 if __name__ == "__main__":

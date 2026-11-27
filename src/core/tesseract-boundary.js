@@ -757,13 +757,32 @@ export class Level1CorridorState {
       this.hasLoopedBackToOrigin = true;
     }
     this._recomputeBeat();
+    const enteredPortal =
+      this.completed &&
+      nextIdx === 0 &&
+      Math.abs(this.playerX) <= 1.3 &&
+      this.getLocalZInCell() >= 2.15;
+
     return {
       roomChanged: prevIdx !== nextIdx,
       prevCell: LEVEL1_LOOP_CELLS[prevIdx],
       cellId: LEVEL1_LOOP_CELLS[nextIdx],
       roomIndex: nextIdx,
       justLooped: this.hasLoopedBackToOrigin && prevIdx !== nextIdx && nextIdx === 0,
+      enteredPortal,
     };
+  }
+
+  /**
+   * Context-aware puzzle phase for discovery-first H hints (matches & exceeds Level 14 standard).
+   */
+  getCurrentPuzzlePhase() {
+    if (this.completed) return 'completed';
+    if (this.hasLoopedBackToOrigin || this.visitedRoomIndices.size >= 4) {
+      return this.getRoomIndex() === 0 ? 'looped_at_origin' : 'looped_away';
+    }
+    if (this.hasWaved || Math.abs(this.unwrappedZ) >= 3.2) return 'observed_corridor';
+    return 'initial';
   }
 
   /**
@@ -902,6 +921,14 @@ export class Level2AntipodalState {
     return { correct: false, expected: exactPaths.length };
   }
 
+  getCurrentPuzzlePhase() {
+    if (this.completed) return 'completed';
+    if (this.hasPickedLocator) return 'has_locator';
+    if (this.cellId === 'W-') return 'in_wminus';
+    if (this.hasEnteredNeighbor || this.cellId !== 'W+') return 'in_neighbor';
+    return 'in_wplus';
+  }
+
   _recomputeBeat() {
     if (this.completed) {
       this.beat = 3;
@@ -1025,7 +1052,20 @@ export class Level3HolonomyState {
   canInteractLock() {
     if (this.cellId !== 'W+' || this.completed) return false;
     const [x, y, z] = this.nav.getLocalPos3();
-    return Math.hypot(x, y, z) <= 2.95;
+    // Generous effortless interaction once returning aligned or reversed;
+    // before leaving spawn, require approaching the resonance pedestal (0, -1.55, 1.1) so Frame 1 stays clean!
+    if (this.isGyroAlignedForLock() || this.isGyroReversedInWPlus()) {
+      return Math.hypot(x, y, z) <= 4.5;
+    }
+    return Math.hypot(x, y + 1.55, z - 1.1) <= 2.35;
+  }
+
+  getCurrentPuzzlePhase() {
+    if (this.completed) return 'completed';
+    if (this.isGyroAlignedForLock()) return 'returned_aligned';
+    if (this.isGyroReversedInWPlus()) return 'returned_reversed';
+    if (this.cellId !== 'W+' || this.nav.transitCount >= 1) return 'exploring';
+    return 'initial';
   }
 
   tryEmbedGyroInLock() {
@@ -1118,6 +1158,14 @@ export class Level4HamiltonianState {
    */
   isAntipodeTrapState() {
     return !this.riftSphereAwakened && this.visited.size === 8 && this.cellId === 'W-';
+  }
+
+  getCurrentPuzzlePhase() {
+    if (this.completed) return 'completed';
+    if (this.riftSphereAwakened) return 'rift_awakened';
+    if (this.isAntipodeTrapState()) return 'antipode_trap';
+    if (this.visited.size >= 5) return 'near_complete';
+    return 'exploring';
   }
 
   stepMove(forward, right, up, dtSec, speed) {

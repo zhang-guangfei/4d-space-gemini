@@ -336,8 +336,10 @@ export class HudController {
     this.els.wheelHandoffCue?.classList.remove('is-visible');
   }
 
-  showSliceCallout(durationMs = 5400) {
+  showSliceCallout(durationMs = 5400, customText = '留在这一层的部分') {
     if (!this.els.sliceCalloutTag) return;
+    const textSpan = this.els.sliceCalloutTag.querySelector('span:last-child');
+    if (textSpan) textSpan.textContent = customText;
     this.sliceTagVisible = true;
     this.els.sliceCalloutTag.classList.add('is-visible');
     if (this.sliceTagTimer) clearTimeout(this.sliceTagTimer);
@@ -458,6 +460,16 @@ export class HudController {
     this.els.reticle.classList.remove('is-hidden');
     this.els.reticle.classList.toggle('is-interactable', Boolean(vm.reticlePrompt));
     this.els.reticlePrompt.textContent = vm.reticlePrompt || '';
+
+    // 6b. 3D World-Space Anchored Diegetic Callout (matches Level 14 floating discovery cues!)
+    if (this.sliceTagVisible && vm.worldCalloutAnchor && vm.worldCalloutAnchor.inFront && this.els.sliceCalloutTag) {
+      const vw = window.innerWidth || 1280;
+      const vh = window.innerHeight || 720;
+      const cx = Math.max(120, Math.min(vw - 220, vm.worldCalloutAnchor.x + 22));
+      const cy = Math.max(120, Math.min(vh - 110, vm.worldCalloutAnchor.y - 26));
+      this.els.sliceCalloutTag.style.left = `${cx}px`;
+      this.els.sliceCalloutTag.style.top = `${cy}px`;
+    }
 
     // 7. Six-Way Navigation Compass (Levels 2–4)
     if (this.els.ch1Compass && vm.compass) {
