@@ -143,11 +143,11 @@ export const LEVEL_HINTS = Object.freeze({
       },
       {
         speaker: 'tomb',
-        text: '盯着侧视图里 △ 和 ○ 这两个端点，继续拨动滚轮，让它们在左右方向上一起收进两道亮缝之间。',
+        text: '盯着侧视图里 △ 和 ○ 这两个端点，按住 Shift 继续拨滚轮，让它们在左右方向上一起收进两道亮缝之间。',
       },
       {
         speaker: 'tomb',
-        text: '把球在第四维转满 90 度让 △ 和 ○ 收进亮缝，按 W 推过狭缝到达对面底座，再反向拨动滚轮放平它。',
+        text: '把球在第四维转满 90 度让 △ 和 ○ 收进亮缝，按 W 推过狭缝到达对面底座，再按住 Shift 反向拨滚轮放平它。',
       },
     ],
   },
@@ -198,23 +198,44 @@ export const LEVEL_HINTS = Object.freeze({
 export const LEVEL14_PHASE_HINTS = Object.freeze({
   approach: [
     { speaker: 'tomb', text: '走近那颗青色的球，按 E 试着抓住它。' },
-    { speaker: 'tomb', text: '按 E 抓住球后，拨动鼠标滚轮看看球会发生什么变化。' },
-    { speaker: 'tomb', text: '走近按 E 抓住球，用滚轮把它在第四维转满 90 度立起来，再按 W 推过亮缝。' },
+    { speaker: 'tomb', text: '按 E 抓住球后，按住 Shift 拨滚轮看看球会发生什么变化。' },
+    { speaker: 'tomb', text: '走近按 E 抓住球，按住 Shift 拨滚轮把它在第四维转满 90 度立起来，再按 W 推过亮缝。' },
+  ],
+  find_orb_layer: [
+    { speaker: 'tomb', text: '这一层没有切到球身。按 C 回原层，就能重新看见它。' },
+  ],
+  north_reconnect: [
+    { speaker: 'tomb', text: '球留在金色底座上了。按 E 重新操控它，再把它转回底座的形状。' },
   ],
   grabbed_flat: [
-    { speaker: 'tomb', text: '在三维里转它，球的宽度一点也没变。试试拨动鼠标滚轮。' },
+    { speaker: 'tomb', text: '在三维里转它，球的宽度一点也没变。试试按住 Shift 拨滚轮。' },
     { speaker: 'tomb', text: '想象一枚平放在纸面上的硬币——怎样让它通过一道竖直的狭缝？' },
-    { speaker: 'tomb', text: '持续拨动滚轮让球在第四维立直（90 度），等缝边亮起绿光再按 W 推过去。' },
+    { speaker: 'tomb', text: '按住 Shift 拨滚轮让球在第四维立直（90 度），等缝边亮起绿光再按 W 推过去。' },
   ],
   tilted: [
-    { speaker: 'tomb', text: '眼前这一片够薄了——按 Tab 看看刚才碰到墙的是哪一部分。' },
-    { speaker: 'tomb', text: '想象一枚平放在光面里的硬币，轻轻翘起时只剩一条细线——怎样才能让整枚硬币真正穿过竖缝？' },
-    { speaker: 'tomb', text: '盯着侧视图里的 △ 和 ○ 两端，继续拨动滚轮，直到它们一起收进两道亮缝之间、缝边亮起绿光。' },
+    { speaker: 'tomb', text: '先让球停着。拨滚轮，沿 W 轴走一步，青色圆会在哪里？' },
+    { speaker: 'tomb', text: '斜着看，圆面的边缘像个椭圆。整颗球也有这么薄吗？按 W 推到缝前试试。' },
+    { speaker: 'tomb', text: '按 Tab 看金色外轮廓。让球在第四维里立直，等两端都收进缝内，再按 W 推。' },
   ],
   tilted_side_open: [
-    { speaker: 'tomb', text: '想象一枚平放在光面里的硬币，轻轻翘起时只剩一条细线——怎样才能让整枚硬币真正穿过竖缝？' },
-    { speaker: 'tomb', text: '盯着侧视图里的 △ 和 ○ 两端：继续拨动滚轮，观察它们如何在左右方向上向缝内靠拢。' },
-    { speaker: 'tomb', text: '继续拨动滚轮转满 90 度，等 △ 和 ○ 都收进两道亮缝之间、缝边亮起绿光，再按 W 推过去。' },
+    { speaker: 'tomb', text: '青色是这一层的截面。金色轮廓标出了整颗球占的地方，它们一样宽吗？' },
+    { speaker: 'tomb', text: '盯着侧视图里的 △ 和 ○ 两端：按住 Shift 继续拨滚轮，观察它们如何在左右方向上向缝内靠拢。' },
+    { speaker: 'tomb', text: '按住 Shift 继续拨滚轮转满 90 度，等 △ 和 ○ 都收进两道亮缝之间、缝边亮起绿光，再按 W 推过去。' },
+  ],
+  wall_contact: [
+    { speaker: 'tomb', text: '按 Tab 对准缝边，再拨滚轮。沿 W 轴走到哪里，会看到圆伸出缝外？' },
+    { speaker: 'tomb', text: '对照两层的缝边。墙沿第四维延伸，另一层里的球身也得进得去。' },
+    { speaker: 'tomb', text: '按住 Shift 拨滚轮把球立直，直到 △ 和 ○ 都收进缝内、缝边亮绿，再按 W 推。' },
+  ],
+  wall_contact_side_open: [
+    { speaker: 'tomb', text: '在侧视图上来回拨滚轮，沿 W 轴观察。哪一层的青色圆伸出了缝边？' },
+    { speaker: 'tomb', text: '每一层都有同一道缝。转动球，看看 △ 和 ○ 在左右方向上占多宽。' },
+    { speaker: 'tomb', text: '继续转到整颗球立直，两端都进缝、缝边亮绿，再按 W 推。' },
+  ],
+  slit_margin: [
+    { speaker: 'tomb', text: '两端已经贴着缝边了。再转一点，能给它们留出空隙吗？' },
+    { speaker: 'tomb', text: '看两道缝边。把球再立直一点，它们会同时亮绿。' },
+    { speaker: 'tomb', text: '调到接近直角，等缝边亮绿，按 W 推过去。' },
   ],
   blade_ready: [
     { speaker: 'tomb', text: '缝边已经亮起绿光——现在试着把球往前推。' },
@@ -224,7 +245,7 @@ export const LEVEL14_PHASE_HINTS = Object.freeze({
   north_restore: [
     { speaker: 'tomb', text: '看看对面底座亮起的圆球轮廓——还记得它刚才是怎么立起来的吗？' },
     { speaker: 'tomb', text: '它现在还竖立在第四维里。把刚才让它立起来的动作反过来做一次。' },
-    { speaker: 'tomb', text: '反向拨动鼠标滚轮，把圆球重新放平回我们这一层，它就会完整复原并打开巨墙。' },
+    { speaker: 'tomb', text: '按住 Shift 反向拨滚轮，把圆球重新放平回我们这一层，它就会完整复原并打开巨墙。' },
   ],
   completed: [
     { speaker: 'tomb', text: '巨墙已经向两侧敞开，按 WASD 穿过前方通道踏上发光的传送台即可前往下一关。' },
@@ -430,7 +451,8 @@ export class TieredHintController {
     let key = phase || 'initial';
 
     if (this.levelId === 14) {
-      key = phase === 'tilted' && sideViewOpen ? 'tilted_side_open' : phase;
+      key = sideViewOpen && (phase === 'tilted' || phase === 'wall_contact')
+        ? `${phase}_side_open` : phase;
       list = LEVEL14_PHASE_HINTS[key] || LEVEL14_PHASE_HINTS.approach;
     } else if (CHAPTER1_PHASE_HINTS[this.levelId]) {
       const table = CHAPTER1_PHASE_HINTS[this.levelId];

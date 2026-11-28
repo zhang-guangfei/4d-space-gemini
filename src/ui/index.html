@@ -44,11 +44,11 @@
         </div>
       </div>
 
-      <div class="telemetry-bar" aria-label="空间几何读数">
+      <details class="telemetry-bar" aria-label="空间几何读数">
+        <summary>几何读数</summary>
         <span id="telemetry-coord" class="mono">CELL W+ · (0.0, 1.7, 0.0)</span>
-        <span class="sep">|</span>
         <span id="telemetry-orb" class="mono">回廊周期 4 间 · 总长 24.0m</span>
-      </div>
+      </details>
 
       <!-- Non-Checklist 3-Beat Discovery Feedback (lights up organically upon discovery) -->
       <div class="beats-strip" aria-label="探索节奏">
@@ -116,16 +116,23 @@
       <div id="compass-grid" class="compass-grid"></div>
     </section>
 
-    <!-- Floating Visual Cue A (Level 14): Scroll-Wheel Ownership Handoff -->
+    <!-- Level 14 Goal Marker pinned to North Pedestal behind slit -->
+    <div id="goal-marker" class="goal-marker" hidden>
+      <figure><img src="./north-pedestal.jpg" alt="带金色光环的空底座" width="384" height="238">
+        <figcaption>墙后 · 金色底座</figcaption>
+      </figure>
+    </div>
+
+    <!-- Floating Visual Cue A (Level 14): Rotation shortcut beside the grabbed orb -->
     <div id="wheel-handoff-cue" class="wheel-handoff-cue" aria-hidden="true">
       <span class="wheel-glyph">⇕</span>
-      <span>滚轮：旋转手中的球</span>
+      <span>Shift + 滚轮转球</span>
     </div>
 
     <!-- Floating Visual Cue B (Level 14): Short Screen-Space Callout anchored to cyan disc -->
     <div id="slice-callout-tag" class="slice-callout-tag" aria-hidden="true">
       <span class="callout-dot"></span>
-      <span>留在这一层的部分</span>
+      <span>本层截面 · 圆面斜看像椭圆</span>
     </div>
 
     <!-- Progressive Bottom-Left Tab Entry Pill (Level 14 only) -->
@@ -137,15 +144,22 @@
     <!-- Bottom-Left: Honest Fourth-Dimension Side-View Panel (Level 14 only) -->
     <section id="side-view-panel" class="side-view-panel" aria-label="第四维度侧视图">
       <div class="panel-header">
-        <span class="panel-title">第四维度侧视图 · △ 与 ○ 对应圆球两端</span>
+        <span class="panel-title">第四维侧视</span>
         <button id="btn-tab-view" class="mini-key-btn" type="button" title="按 Tab 切换第四维度侧视图">
           <span class="keycap">Tab</span>
           <span id="btn-tab-label">收起</span>
         </button>
       </div>
       <canvas id="side-view-canvas" class="side-view-canvas"></canvas>
-      <div class="panel-caption">
-        <strong>△</strong> 与 <strong>○</strong> 标出圆球左右两端：转动时两点间距恒定，观察它们如何向两道亮缝之间收拢。
+      <div class="layer-controls" role="group" aria-label="沿 W 轴观察">
+        <button id="btn-w-minus" class="mini-key-btn" type="button" aria-label="沿 W 轴负向移动" title="沿 W 轴负向移动">−W</button>
+        <output id="observe-w" class="mono" aria-label="当前观察位置">W +0.00</output>
+        <button id="btn-w-plus" class="mini-key-btn" type="button" aria-label="沿 W 轴正向移动" title="沿 W 轴正向移动">+W</button>
+        <button id="btn-w-origin" class="mini-key-btn" type="button"><span class="keycap">C</span>回原层</button>
+      </div>
+      <div class="panel-caption side-legend">
+        <span><i class="slice-symbol" aria-hidden="true"></i> 青色实心面 · 当前层的球身</span>
+        <span><i class="outline-symbol" aria-hidden="true"></i> 金色外轮廓 · 整颗球所占的范围</span>
       </div>
     </section>
 

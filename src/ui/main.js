@@ -259,6 +259,8 @@ function boot() {
       unlockAudioOnce();
       activeRuntime?.toggleTab?.();
     },
+    onStepW: (wheelUnits) => activeRuntime?.stepW?.(wheelUnits),
+    onReturnToOriginLayer: () => activeRuntime?.returnToOriginLayer?.(),
     onReleaseAfterVictory: () => activeRuntime?.releaseAfterVictory?.(),
     onNextLevel: () => {
       unlockAudioOnce();
@@ -315,6 +317,7 @@ function boot() {
       if (activeLevelId !== 0) principleGuide.toggle();
     },
     onToggleHonestView: () => activeRuntime?.toggleTab?.(),
+    onReturnToOriginLayer: () => activeRuntime?.returnToOriginLayer?.(),
     onToggleConsole: () => {
       const expanded = activeLevelId === 14 ? consolePanel.toggle() : topologyMap.toggle();
       hud.setConsoleExpanded(expanded);
@@ -325,8 +328,8 @@ function boot() {
     onPrimaryTap: () => activeRuntime?.primaryTap?.(),
     onZeroGLook: (yawDelta, pitchDelta) => activeRuntime?.zeroGLook?.(yawDelta, pitchDelta),
     onGrabDrag3D: (deltaYaw, deltaPitch) => activeRuntime?.grabDrag3D?.(deltaYaw, deltaPitch),
-    onWheel4D: (wheelUnits) => activeRuntime?.wheel4D?.(wheelUnits),
-  });
+    onWheel4D: (wheelUnits, shiftHeld) => activeRuntime?.wheel4D?.(wheelUnits, shiftHeld),
+  }, document.getElementById('side-view-panel'));
 
   // -------------------------------------------------------------------------
   // Chapter 1 Runtime Factory (Levels 0, 1, 2, 3, 4 — Zone A)
@@ -1035,7 +1038,6 @@ function boot() {
     let autoReleaseTimer = null;
     let openingTimer = null;
     let northStuckTimer = 0;
-    let northPushAttempts = 0;
 
     const coached = {
       firstGrabWheel: false,
@@ -1051,7 +1053,6 @@ function boot() {
     const resetCoaching = () => {
       for (const k of Object.keys(coached)) coached[k] = false;
       northStuckTimer = 0;
-      northPushAttempts = 0;
     };
 
     const releaseGrabCleanly = ({ keepVictoryBanner = false } = {}) => {
@@ -1070,9 +1071,8 @@ function boot() {
       sfx.playGrabLock(false);
       if (state.completed && !keepVictoryBanner) {
         hud.dismissVictoryBanner();
-      } else if (releasingAtNorthUnrestored && !coached.northRestoreNudge) {
-        coached.northRestoreNudge = true;
-        voice.speak('tomb', '还记得它刚才是怎么立起来的吗？', { durationMs: 5600 });
+      } else if (releasingAtNorthUnrestored) {
+        voice.speak('tomb', '球留在底座上了。按 E 可以接着转动它。', { durationMs: 5600 });
       }
     };
 
@@ -1103,6 +1103,49 @@ function boot() {
       }
     };
 
+    const returnToOriginLayer = () => {
+      if (paused || guideOpen || teleporterOpen || state.playerPos[3] === 0) return;
+      state.shiftPlayerW(-state.playerPos[3]);
+      sfx.playWShift(0);
+    };
+
+    const moveAlongW = (wheelUnits) => {
+      if (paused || guideOpen || teleporterOpen || !wheelUnits) return;
+      unlockAudioOnce();
+      const tilted = Math.abs(Math.sin(state.thetaRad)) > 0.05;
+      const res = state.grabbed || (tilted && !state.completed)
+        ? state.exploreOrbW(wheelUnits)
+        : state.shiftPlayerW(wheelUnits * 0.28);
+      hud.hideWheelHandoffCue();
+      hud.hideSliceCallout();
+      sfx.playWShift(res.w);
+      hud.flashEdge(
+        res.w > 0.6
+          ? PALETTE.accent.goldWPos
+          : res.w < -0.6
+            ? PALETTE.accent.blueWNeg
+            : PALETTE.accent.cyanW0
+      );
+      if (
+        !coached.wScrollSphereSlices &&
+        tilted &&
+        !state.hasInspectableContact &&
+        res.w !== 0 &&
+        state.getSliceAtPlayerW().intersects
+      ) {
+        coached.wScrollSphereSlices = true;
+        voice.speak('tomb', '球停在原处。你沿 W 轴走了一步，现在切到的是它的另一部分。', {
+          durationMs: 5800,
+        });
+      } else if (!coached.wScrollAllW && !tilted && Math.abs(res.w) >= 0.85 && !state.completed) {
+        coached.wScrollAllW = true;
+        voice.speak('tomb', '你走到了另一层。墙还在这里，按 C 可以回到球所在的原层。', {
+          durationMs: 5800,
+        });
+      }
+      announceBeatAdvance();
+    };
+
     sanctuary3D.triggerOpeningPedestalSpotlight();
     const opening = hints.getOpeningLine();
     openingTimer = setTimeout(() => {
@@ -1118,6 +1161,8 @@ function boot() {
       state,
       sanctuary3D,
       hints,
+      stepW: moveAlongW,
+      returnToOriginLayer,
       requestHint: () => {
         const phase = state.getCurrentPuzzlePhase();
         const res = hints.requestContextHint(phase, {
@@ -1125,7 +1170,7 @@ function boot() {
         });
         const tierNames = ['思路启发', '操作方向', '完整解法'];
         voice.speak(res.speaker, res.text, {
-          tierLabel: `${res.tier}级·${tierNames[Math.min(res.tier - 1, 2)]}`,
+          tierLabel: `${res.tier}级·${tierNames[Math.min(res.tier - 1, tierNames.length - 1)]}`,
           durationMs: 8200,
         });
         if (res.shouldHighlightTarget) sanctuary3D.setHintHighlight(true);
@@ -1135,15 +1180,6 @@ function boot() {
         sfx.playTabViewSwitch(mode === 'side_xzw');
         hud.setTabAttention(false);
         hud.hideSliceCallout();
-        if (
-          mode === 'side_xzw' &&
-          state.grabbed &&
-          state.hasBumpedWhileTilted &&
-          !state.isBladeThinEnough() &&
-          !coached.wallEvidenceNamed
-        ) {
-          state.startCollisionInspect();
-        }
         announceBeatAdvance();
       },
       interact: () => {
@@ -1162,11 +1198,17 @@ function boot() {
           hud.showWheelHandoffCue(4800);
           if (!coached.firstGrabWheel) {
             coached.firstGrabWheel = true;
-            voice.speak('tomb', '现在，滚轮转动的是你手里的球。', { durationMs: 5000 });
+            voice.speak('tomb', '滚轮沿 W 轴移动。按住 Shift 拨滚轮，就能转动手里的球。', {
+              durationMs: 5000,
+            });
           }
           announceBeatAdvance();
         } else {
-          hud.showBlockToast('再走近圆球一些，按 E 抓住它');
+          hud.showBlockToast(
+            res.reason === 'other_layer'
+              ? '这一层没有球身，按 C 回原层'
+              : '再走近圆球一些，按 E 抓住它'
+          );
         }
       },
       grabDrag3D: (deltaYaw, deltaPitch) => {
@@ -1174,72 +1216,46 @@ function boot() {
         state.rotateOrb3D(deltaYaw, deltaPitch);
         if (!coached.drag3DInvariant && state.hasRotated3DWhileGrabbed && !state.hasRotated4DWhileGrabbed) {
           coached.drag3DInvariant = true;
-          voice.speak('tomb', '这样转动，球的宽度一点也没变。试试拨动鼠标滚轮。', { durationMs: 5600 });
+          voice.speak('tomb', '这样转动，球的宽度一点也没变。试试按住 Shift 拨滚轮。', {
+            durationMs: 5600,
+          });
         }
       },
-      wheel4D: (wheelUnits) => {
-        if (state.grabbed) {
-          const deltaDeg = wheelUnits * 5.0;
-          const wasBlade = state.isBladeThinEnough();
-          const res = state.rotateOrb4D(deltaDeg);
-          hud.hideWheelHandoffCue();
+      wheel4D: (wheelUnits, shiftHeld = false) => {
+        if (!state.grabbed || !shiftHeld) {
+          moveAlongW(wheelUnits);
+          return;
+        }
+        const deltaDeg = wheelUnits * 5.0;
+        const wasBlade = state.isBladeThinEnough();
+        const res = state.rotateOrb4D(deltaDeg);
+        hud.hideWheelHandoffCue();
 
-          if (res.blocked) {
-            sfx.playBlocked();
-            sanctuary3D.triggerBarrierFlash();
-            grabStage.triggerBlockFlash();
-            hud.flashEdge(PALETTE.accent.amberCoral);
-            hud.showBlockToast(state.lastBlockEvent?.message || '狭缝内空间不足，请先将球推到对面底座');
-          } else if (res.applied) {
-            const isBladeNow = res.isBlade;
-            sfx.playRotate4D(res.thetaDeg, !wasBlade && isBladeNow);
+        if (res.blocked) {
+          sfx.playBlocked();
+          sanctuary3D.triggerBarrierFlash();
+          grabStage.triggerBlockFlash();
+          hud.flashEdge(PALETTE.accent.amberCoral);
+          hud.showBlockToast(state.lastBlockEvent?.message || '狭缝内空间不足，请先将球推到对面底座');
+        } else if (res.applied) {
+          const isBladeNow = res.isBlade;
+          sfx.playRotate4D(res.thetaDeg, !wasBlade && isBladeNow);
 
-            const distFrom0 = angularDistanceMod180Deg(res.thetaDeg, 0);
-            if (!coached.slightTiltDisc && !isBladeNow && distFrom0 >= 4 && distFrom0 < 85) {
-              coached.slightTiltDisc = true;
-              hud.showSliceCallout(5800);
-              voice.speak(
-                'tomb',
-                '你把球的一部分转出了我们这一层。青色的，是还留在这里的那一片。',
-                { durationMs: 6800 }
-              );
-            }
-            if (distFrom0 < 3) hud.hideSliceCallout();
-            if (!wasBlade && isBladeNow) {
-              hud.flashEdge(PALETTE.accent.emerald);
-              hud.hideSliceCallout();
-              hud.setTabAttention(false);
-            }
-            announceBeatAdvance();
-          }
-        } else {
-          const res = state.shiftPlayerW(wheelUnits * 0.28);
-          sfx.playWShift(res.w);
-          const wColor =
-            res.w > 0.6
-              ? PALETTE.accent.goldWPos
-              : res.w < -0.6
-                ? PALETTE.accent.blueWNeg
-                : PALETTE.accent.cyanW0;
-          hud.flashEdge(wColor);
-
-          const orbRotatedIntoW = Math.abs(Math.sin(state.thetaRad)) > 0.08;
-          const orbSliceNow = state.getSliceAtPlayerW();
-          if (
-            !coached.wScrollSphereSlices &&
-            orbRotatedIntoW &&
-            Math.abs(res.w) >= 0.08 &&
-            (orbSliceNow.intersects || Math.abs(res.w) <= state.getExtents().wMax + 0.35)
-          ) {
-            coached.wScrollSphereSlices = true;
+          const distFrom0 = angularDistanceMod180Deg(res.thetaDeg, 0);
+          if (!coached.slightTiltDisc && !isBladeNow && distFrom0 >= 4 && distFrom0 < 85) {
+            coached.slightTiltDisc = true;
+            hud.showSliceCallout(5800);
             voice.speak(
               'tomb',
-              '现在你看到的是在第四维度不同位置的球切面，所有切面拼接起来就是球的整体三维结构。换句话说，球被切成了不同的圆被分散放在了w轴上。',
-              { tierLabel: '维度洞察', durationMs: 10200 }
+              '青色圆是这一层的球身。拨滚轮，沿 W 轴看看另一层的圆在哪里。',
+              { durationMs: 6800 }
             );
-          } else if (!coached.wScrollAllW && !orbRotatedIntoW && Math.abs(res.w) >= 0.85 && !state.completed) {
-            coached.wScrollAllW = true;
-            voice.speak('tomb', '换到这一层，两旁的折页变了——但前方的墙依然在原位。', { durationMs: 5800 });
+          }
+          if (distFrom0 < 3) hud.hideSliceCallout();
+          if (!wasBlade && isBladeNow) {
+            hud.flashEdge(PALETTE.accent.emerald);
+            hud.hideSliceCallout();
+            hud.setTabAttention(false);
           }
           announceBeatAdvance();
         }
@@ -1267,10 +1283,15 @@ function boot() {
       },
       stepFrame: (dtSec) => {
         if (!paused && !guideOpen && !teleporterOpen) {
-          const inspectStatus = state.stepInspectW(dtSec);
-          if (inspectStatus.arrivedAtEvidence && !coached.wallEvidenceNamed) {
+          if (state.observedWallOverlapX === null) {
+            voice.dismissCue('wall-evidence');
+          } else if (!coached.wallEvidenceNamed) {
             coached.wallEvidenceNamed = true;
-            voice.speak('tomb', '原来，换到这一层，墙还在。它沿第四维也一直延伸。', { durationMs: 6800 });
+            voice.speak(
+              'tomb',
+              '你换了一层。看同一条缝边，这一片球身伸到了外面。',
+              { durationMs: 6800, cue: 'wall-evidence' }
+            );
           }
 
           if (state.grabbed && !state.completed && state.isOnNorthPedestal()) {
@@ -1287,23 +1308,20 @@ function boot() {
           if (state.grabbed) {
             if (move.forward !== 0) {
               const speed = move.sprint ? 3.4 : 2.15;
+              const wasBlocked = state.lastBlockEvent?.type === 'too_wide_for_slit';
               const res = state.pushOrbZ(move.forward * speed * dtSec);
-              if (res.blocked) {
+              if (res.blocked && !wasBlocked) {
                 sfx.playBlocked();
                 grabStage.triggerBlockFlash();
-                const distFrom0 = angularDistanceMod180Deg(state.thetaDeg, 0);
-                if (distFrom0 >= 4 && distFrom0 < 85) {
-                  const xContact = Math.max(0.24, state.getExtents().xMax * 0.68);
-                  sanctuary3D.triggerTiltedBump(xContact);
+                if (state.hasInspectableContact) {
+                  sanctuary3D.triggerTiltedBump();
                   hud.hideSliceCallout();
                   if (state.viewMode !== 'side_xzw') hud.setTabAttention(true);
                   if (!coached.tiltedBlocked) {
                     coached.tiltedBlocked = true;
                     voice.speak(
                       'tomb',
-                      state.viewMode === 'side_xzw'
-                        ? '看看刚才碰到墙的是哪一部分。'
-                        : '眼前这片够薄了。刚才是哪里碰到了墙？',
+                      '球先停在这里。拨滚轮，看看哪一层的青色圆伸出了缝边。',
                       { durationMs: 6400 }
                     );
                   }
@@ -1316,12 +1334,6 @@ function boot() {
                 if (!coached.northArrived) {
                   coached.northArrived = true;
                   voice.speak('tomb', '球送到了。看看底座的形状。', { durationMs: 5800 });
-                } else if (Math.abs(state.orbZ - state.config.orbMaxZ) < 0.05 && move.forward > 0) {
-                  northPushAttempts += dtSec;
-                  if (northPushAttempts > 1.2 && !coached.northRestoreNudge) {
-                    coached.northRestoreNudge = true;
-                    voice.speak('tomb', '还记得它刚才是怎么立起来的吗？', { durationMs: 5800 });
-                  }
                 }
               }
               announceBeatAdvance();
@@ -1367,8 +1379,11 @@ function boot() {
         grabStage.updateCamera(camera, state, input, dtSec);
         grabStage.renderSideView(state);
         consolePanel.render(state);
-        const orbAnchor = sanctuary3D.getOrbScreenAnchor(camera);
-        hud.sync(state, hints.getSnapshot(), orbAnchor);
+        const orbAnchor = sanctuary3D.getScreenAnchor(sanctuary3D.orbRoot);
+        const goalAnchor = !state.grabbed && !state.hasRotated4DWhileGrabbed && !state.completed
+          ? sanctuary3D.getScreenAnchor(sanctuary3D.northRing)
+          : null;
+        hud.sync(state, hints.getSnapshot(), orbAnchor, goalAnchor);
         scene.render();
       },
       actions: {
@@ -1379,7 +1394,9 @@ function boot() {
             hud.showWheelHandoffCue(4800);
             if (!coached.firstGrabWheel) {
               coached.firstGrabWheel = true;
-              voice.speak('tomb', '现在，滚轮转动的是你手里的球。', { durationMs: 5000 });
+              voice.speak('tomb', '滚轮沿 W 轴移动。按住 Shift 拨滚轮，就能转动手里的球。', {
+                durationMs: 5000,
+              });
             }
           }
           return r;
@@ -1395,6 +1412,7 @@ function boot() {
       dispose: () => {
         if (autoReleaseTimer) clearTimeout(autoReleaseTimer);
         if (openingTimer) clearTimeout(openingTimer);
+        voice.dismissCue('wall-evidence');
         scene.dispose();
       },
     };

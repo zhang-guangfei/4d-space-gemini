@@ -27,8 +27,9 @@
 import { clamp } from '../core/math4d.js';
 
 export class InputController {
-  constructor(canvas, callbacks = {}) {
+  constructor(canvas, callbacks = {}, sideView = null) {
     this.canvas = canvas;
+    this.sideView = sideView;
     this.cb = callbacks;
 
     this.keys = new Set();
@@ -206,9 +207,9 @@ export class InputController {
       this.cb.onUserGesture?.();
 
       // Normalize wheel delta across trackpads & discrete mouse wheels
-      const raw = clamp(e.deltaY, -140, 140);
+      const raw = clamp(e.deltaY || (e.shiftKey ? e.deltaX : 0), -140, 140);
       const dir = -raw / 100; // Scroll UP -> positive (+W or +theta)
-      this.cb.onWheel4D?.(dir * this.wheelSensitivity);
+      this.cb.onWheel4D?.(dir * this.wheelSensitivity, e.shiftKey);
     };
 
     this._onKeyDown = (e) => {
@@ -263,6 +264,12 @@ export class InputController {
         return;
       }
 
+      if (e.code === 'KeyC' && this.mode !== 'zero_g' && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        this.cb.onReturnToOriginLayer?.();
+        return;
+      }
+
       if (e.code === 'KeyI' && !e.repeat) {
         e.preventDefault();
         this.cb.onToggleGuide?.();
@@ -283,12 +290,12 @@ export class InputController {
       // Silent accessibility wheel aliases ([ / ] or PageUp / PageDown) for trackpad-less testing
       if (e.code === 'BracketRight' || e.code === 'PageUp') {
         e.preventDefault();
-        this.cb.onWheel4D?.(0.85 * this.wheelSensitivity);
+        this.cb.onWheel4D?.(0.85 * this.wheelSensitivity, e.shiftKey);
         return;
       }
       if (e.code === 'BracketLeft' || e.code === 'PageDown') {
         e.preventDefault();
-        this.cb.onWheel4D?.(-0.85 * this.wheelSensitivity);
+        this.cb.onWheel4D?.(-0.85 * this.wheelSensitivity, e.shiftKey);
         return;
       }
 
@@ -327,6 +334,7 @@ export class InputController {
     window.addEventListener('pointermove', this._onPointerMove);
     this.canvas.addEventListener('contextmenu', this._onContextMenu);
     this.canvas.addEventListener('wheel', this._onWheel, { passive: false });
+    this.sideView?.addEventListener('wheel', this._onWheel, { passive: false });
     window.addEventListener('keydown', this._onKeyDown);
     window.addEventListener('keyup', this._onKeyUp);
     window.addEventListener('blur', this._onBlur);
@@ -376,6 +384,7 @@ export class InputController {
     window.removeEventListener('pointermove', this._onPointerMove);
     this.canvas.removeEventListener('contextmenu', this._onContextMenu);
     this.canvas.removeEventListener('wheel', this._onWheel);
+    this.sideView?.removeEventListener('wheel', this._onWheel);
     window.removeEventListener('keydown', this._onKeyDown);
     window.removeEventListener('keyup', this._onKeyUp);
     window.removeEventListener('blur', this._onBlur);

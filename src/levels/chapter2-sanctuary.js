@@ -47,7 +47,6 @@ export class Level14SanctuaryScene {
     this.barrierFlash = 0;
     this.sliceConfirmPulse = 0;
     this.contactHighlight = 0;
-    this.contactX = 0.55;
     this.openingPulseTimer = 4.2;
     this.hintHighlight = false;
     this.gateOpenProgress = 0;
@@ -1035,7 +1034,7 @@ export class Level14SanctuaryScene {
     this.contactPatchMat = createGhostMaterial(s, 'wall_contact_patch_mat', PALETTE.accent.amberCoral, 0.34);
     this.contactPatchMesh = B.MeshBuilder.CreateDisc(
       'wall_contact_patch',
-      { radius: 0.72, tessellation: 32 },
+      { radius: 1, tessellation: 32, sideOrientation: B.Mesh.DOUBLESIDE },
       s
     );
     this.contactPatchMesh.position.set(0.55, LEVEL14_CONFIG.orbCenterY, LEVEL14_CONFIG.wallZMin - 0.09);
@@ -1208,10 +1207,9 @@ export class Level14SanctuaryScene {
    * 1. Flashes the thin cyan slice & both slit lips cyan-platinum ("this slice IS thin enough!")
    * 2. Highlights the exact protruding 4D wing + wall contact area instead of the whole wall!
    */
-  triggerTiltedBump(xContact = 0.55) {
+  triggerTiltedBump() {
     this.sliceConfirmPulse = 1.0;
     this.contactHighlight = 1.0;
-    this.contactX = Math.max(0.22, Math.abs(xContact));
   }
 
   triggerOpeningPedestalSpotlight() {
@@ -1223,28 +1221,21 @@ export class Level14SanctuaryScene {
   }
 
   /**
-   * Project the Passing Orb's 3D world center into 2D screen viewport coordinates
-   * so subtle floating cues ("留在这一层的部分" / scroll handoff) anchor naturally beside the orb.
+   * Project a scene landmark into CSS pixels for its HUD callout.
    */
-  getOrbScreenAnchor(camera) {
-    if (!camera || !this.orbRoot) return null;
+  getScreenAnchor(mesh) {
     const B = this.B;
-    const engine = this.scene.getEngine();
-    const w = engine.getRenderWidth();
-    const h = engine.getRenderHeight();
-    if (!w || !h) return null;
-    const pos = this.orbRoot.getAbsolutePosition();
-    const viewport = camera.viewport.toGlobal(w, h);
+    const rect = this.scene.getEngine().getRenderingCanvas().getBoundingClientRect();
+    const viewport = this.camera.viewport.toGlobal(rect.width, rect.height);
     const projected = B.Vector3.Project(
-      pos,
+      mesh.getAbsolutePosition(),
       B.Matrix.Identity(),
-      this.scene.getTransformMatrix(),
+      this.camera.getTransformationMatrix(),
       viewport
     );
-    const dpr = engine.getHardwareScalingLevel ? 1 / engine.getHardwareScalingLevel() : 1;
     return {
-      x: projected.x / dpr,
-      y: projected.y / dpr,
+      x: projected.x + rect.left,
+      y: projected.y + rect.top,
       inFront: projected.z >= 0 && projected.z <= 1,
     };
   }
@@ -1272,18 +1263,17 @@ export class Level14SanctuaryScene {
     const monolithEased = 1 - Math.pow(1 - this.monolithOpenProgress, 3);
 
     const ext = state.getExtents();
-    // In Grab Stage, observe at `inspectW` (normally 0, glides to colliding neighboring layer on Tab after tilted bump!)
-    const slice = state.grabbed ? state.getSliceAtGrabObserveW() : state.getSliceAtPlayerW();
+    const slice = state.getSliceAtPlayerW();
     const isBlade = state.isBladeThinEnough();
     const distFrom0 = Math.min(
       Math.abs(state.thetaDeg % 180),
       Math.abs(180 - (state.thetaDeg % 180))
     );
     const isTilted = distFrom0 > 3.0;
-    const isInspectingOtherW = state.grabbed && state.inspectModeActive && Math.abs(state.inspectW) > 0.01;
+    const activeW = state.playerPos[3];
+    const isInspectingOtherW = activeW !== 0;
 
     // 1. Flanking W-layer reference arches (solid when player W matches, ghost otherwise)
-    const activeW = state.grabbed ? state.inspectW : state.playerPos[3];
     for (const grp of this.wLayerGroups) {
       applyPhaseToMaterial(grp.mat, activeW - grp.w, { solidThreshold: 0.55, ghostAlpha: 0.34 });
     }
@@ -1291,7 +1281,7 @@ export class Level14SanctuaryScene {
     // 2. Passing Orb exact 4D geometry (Option A: eps=0.001m pure 3D slice default!)
     const hoverOffset = state.completed
       ? monolithEased * 2.15 + Math.sin(this.elapsed * 2.2) * 0.06
-      : Math.sin(this.elapsed * 2.0) * 0.04;
+      : state.grabbed || state.hasInspectableContact ? 0 : Math.sin(this.elapsed * 2.0) * 0.04;
     this.orbRoot.position.set(0, LEVEL14_CONFIG.orbCenterY + hoverOffset, state.orbZ);
     this.orbLight.position.set(0, LEVEL14_CONFIG.orbCenterY + hoverOffset + 0.25, state.orbZ);
 
@@ -1305,14 +1295,11 @@ export class Level14SanctuaryScene {
 
       // Decorative meridian rings stay crisp on full sphere, dim & soften cleanly upon tilt
       // so they NEVER compete with the cyan slice or look like an outer iron hoop!
-      this.orbMeridianRoot.setEnabled(!isInspectingOtherW);
+      this.orbMeridianRoot.setEnabled(!isTilted && !isInspectingOtherW);
       this.orbMeridianRoot.position.set(slice.xCenter, 0, 0);
       this.orbMeridianRoot.scaling.set(sx, sy, sz);
-      const ringGlow = isTilted ? 0.14 : 1.05;
-      this.orbRingMat.emissiveColor = B.Color3.FromHexString(PALETTE.accent.goldWPos).scale(ringGlow);
-      this.orbCenterRingMat.emissiveColor = B.Color3.FromHexString(PALETTE.accent.platinum).scale(
-        isTilted ? 0.28 : 1.05
-      );
+      this.orbRingMat.emissiveColor = B.Color3.FromHexString(PALETTE.accent.goldWPos).scale(1.05);
+      this.orbCenterRingMat.emissiveColor = B.Color3.FromHexString(PALETTE.accent.platinum).scale(1.05);
     } else {
       this.orbSliceCore.setEnabled(false);
       this.orbMeridianRoot.setEnabled(false);
@@ -1321,13 +1308,13 @@ export class Level14SanctuaryScene {
     // 2b. Horizontal Diameter Polar Markers △ (-X) & ○ (+X) on the 3D sphere:
     // Visible at 0°, smoothly drift outward & fade out over 2°..15° when tilted (reversibly return at 0°!)
     const poleFade = Math.max(0, Math.min(1, 1 - (distFrom0 - 2.0) / 13.0));
-    const showSlicePoles = !state.completed && poleFade > 0.04 && state.viewMode !== 'side_xzw';
+    const showSlicePoles = !state.completed && !isInspectingOtherW && poleFade > 0.04 && state.viewMode !== 'side_xzw';
     this.orbPoleTri.setEnabled(showSlicePoles);
     this.orbPoleCirc.setEnabled(showSlicePoles);
     if (showSlicePoles) {
-      const driftOut = (1 - poleFade) * 0.32;
-      this.orbPoleTri.position.set(-(1.08 + driftOut), 0, 0);
-      this.orbPoleCirc.position.set(1.08 + driftOut, 0, 0);
+      const poleX = Math.cos(state.thetaRad) * state.config.radiusR;
+      this.orbPoleTri.position.set(-poleX, 0, 0);
+      this.orbPoleCirc.position.set(poleX, 0, 0);
       const sPole = 0.65 + 0.35 * poleFade;
       this.orbPoleTri.scaling.setAll(sPole);
       this.orbPoleCirc.scaling.setAll(sPole);
@@ -1341,20 +1328,18 @@ export class Level14SanctuaryScene {
     this.orbProjTri.setEnabled(show4DProjection);
     this.orbProjCirc.setEnabled(show4DProjection);
     if (show4DProjection) {
-      this.orbProjRoot.scaling.set(Math.max(0.01, ext.xMax), 1.0, 1.0);
-      const beaconX = Math.max(0.06, ext.xMax + 0.08);
+      this.orbProjRoot.scaling.set(ext.xMax, 1.0, 1.0);
+      const beaconX = Math.cos(state.thetaRad) * state.config.radiusR;
       this.orbProjTri.position.set(-beaconX, 0, 0);
       this.orbProjCirc.position.set(beaconX, 0, 0);
       const beaconHex = isBlade
         ? PALETTE.accent.emerald
-        : this.contactHighlight > 0.05 || isInspectingOtherW
+        : this.contactHighlight > 0.05 || state.observedWallOverlapX !== null
           ? PALETTE.accent.amberCoral
           : PALETTE.accent.goldWPos;
       this.projBeaconMat.albedoColor = B.Color3.FromHexString(beaconHex);
       this.projBeaconMat.emissiveColor = B.Color3.FromHexString(beaconHex).scale(1.85);
-      this.orbProjShellMat.emissiveColor = B.Color3.FromHexString(
-        isBlade ? PALETTE.accent.emerald : PALETTE.accent.goldWPos
-      ).scale(0.85);
+      this.orbProjShellMat.emissiveColor = B.Color3.FromHexString(PALETTE.accent.goldWPos).scale(0.85);
     } else {
       this.orbProjRoot.scaling.set(1.0, 1.0, 1.0);
     }
@@ -1369,10 +1354,6 @@ export class Level14SanctuaryScene {
     let accentHex = PALETTE.accent.cyanW0;
     if (state.completed) {
       accentHex = PALETTE.accent.platinum;
-    } else if (isBlade) {
-      accentHex = PALETTE.accent.emerald;
-    } else if (isInspectingOtherW) {
-      accentHex = PALETTE.accent.amberCoral;
     }
     const accentColor = B.Color3.FromHexString(accentHex);
     this.orbCoreMat.albedoColor = accentColor;
@@ -1383,7 +1364,7 @@ export class Level14SanctuaryScene {
     this.orbLight.diffuse = accentColor;
 
     // Hide decorative YZ plane halo once tilted (> 3°) so it NEVER reads as a solid outer hoop!
-    this.yzPlaneHalo.setEnabled(state.grabbed && !state.completed && !isTilted);
+    this.yzPlaneHalo.setEnabled(state.grabbed && !state.completed && !isTilted && !isInspectingOtherW);
     if (state.grabbed && !isTilted) {
       const pulse = 0.30 + Math.sin(this.elapsed * 3.0) * 0.03;
       this.yzHaloMat.alpha = Math.min(0.34, Math.max(0.30, pulse));
@@ -1398,14 +1379,15 @@ export class Level14SanctuaryScene {
     }
 
     // 4. Focused Collision Contact Patch + Slit Edge Feedback (never blind the player with a whole-wall flash!)
-    const showContact = (this.contactHighlight > 0.04 || isInspectingOtherW) && !isBlade && !state.completed;
-    this.contactPatchMesh.isVisible = showContact;
-    if (showContact) {
-      const cx = isInspectingOtherW && slice.intersects ? slice.xCenter : this.contactX;
+    const contactX = state.observedWallOverlapX;
+    this.contactPatchMesh.isVisible = contactX !== null;
+    if (contactX !== null) {
+      const northFace = state.orbZ > 0;
+      this.contactPatchMesh.scaling.set(Math.min(0.06, Math.abs(contactX) - state.config.slitHalfWidth), 0.14, 1);
       this.contactPatchMesh.position.set(
-        cx,
+        contactX,
         LEVEL14_CONFIG.orbCenterY,
-        LEVEL14_CONFIG.wallZMin - 0.09
+        northFace ? LEVEL14_CONFIG.wallZMax + 0.09 : LEVEL14_CONFIG.wallZMin - 0.09
       );
       const pulse = 0.30 + 0.05 * Math.sin(this.elapsed * 6.5);
       this.contactPatchMat.alpha = Math.min(0.35, Math.max(0.30, pulse));

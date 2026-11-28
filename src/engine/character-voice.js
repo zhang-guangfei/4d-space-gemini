@@ -38,6 +38,7 @@ export class CharacterVoiceEngine {
     this.audioCtx = null;
     this.reverbBuffer = null;
     this.subtitleTimer = null;
+    this.currentCue = null;
     this.userUnlocked = false;
     this.pendingSpeech = null;
     this.cachedVoices = [];
@@ -272,12 +273,22 @@ export class CharacterVoiceEngine {
     }
   }
 
+  dismissCue(cue) {
+    if (this.currentCue !== cue) return;
+    this.currentCue = null;
+    clearTimeout(this.subtitleTimer);
+    this.pendingSpeech = null;
+    this.onSubtitle({ visible: false });
+    globalThis.speechSynthesis?.cancel();
+  }
+
   /**
    * Speak a character line with acoustic signature + Neural/Web Speech synthesis + HUD subtitle.
    */
   speak(speakerId, text, options = {}) {
     const profile = SPEAKERS[speakerId] || SPEAKERS.tomb;
     const durationMs = options.durationMs ?? Math.max(4600, Math.min(7600, text.length * 175));
+    this.currentCue = options.cue ?? null;
 
     this.onSubtitle({
       visible: true,

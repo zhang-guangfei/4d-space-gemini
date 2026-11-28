@@ -202,11 +202,6 @@ export class Level14HairlineSlitState {
     this.completed = false;
     this.enteredTeleporter = false;
 
-    // Neighboring-W collision inspection state (Tab after a tilted bump glides observer to colliding layer!)
-    this.inspectW = 0;
-    this.inspectTargetW = 0;
-    this.inspectModeActive = false;
-
     // 3-beat progression: 0 (initial) -> 1 (奇观) -> 2 (把玩) -> 3 (运用/通关)
     this.beat = 0;
     this.lastBlockEvent = null;
@@ -242,77 +237,33 @@ export class Level14HairlineSlitState {
     );
   }
 
-  /**
-   * Slice observed during Grab Stage: normally w = 0, or smoothly glided to neighboring
-   * colliding layer `inspectW` when inspecting WHY a tilted thin slice hit the wall!
-   */
-  getSliceAtGrabObserveW() {
-    return computeOblateSpheroidSliceAtW(
-      this.thetaRad,
-      this.inspectW,
-      this.config.radiusR,
-      this.config.wHalfThickness
-    );
+  get hasInspectableContact() {
+    return this.lastBlockEvent?.type === 'too_wide_for_slit' &&
+      angularDistanceMod180Deg(this.thetaDeg, 0) >= 4 &&
+      this.getExtents().xMax > this.config.slitHalfWidth;
   }
 
-  /**
-   * Analytically choose a guaranteed neighboring fourth-dimension layer `wInspect` where
-   * the tilted orb's circular cross-section has radius ~0.785m AND is displaced outside
-   * the ±0.082m slit, pressing directly against the solid monolith wall!
-   */
-  computeTiltedCollisionInspectW(thetaDeg = this.thetaDeg) {
-    const thetaRad = degToRad(thetaDeg);
-    const { xMax, wMax } = computeOblateSpheroidExtents(
-      thetaRad,
-      this.config.radiusR,
-      this.config.wHalfThickness
-    );
-    if (xMax <= this.config.slitHalfWidth || wMax <= 0.02) {
-      return 0;
-    }
-    // Positive xCenter side makes the colliding patch appear cleanly on the right (+X) wall face
-    const sinCos = Math.sin(thetaRad) * Math.cos(thetaRad);
-    const sign = sinCos >= 0 ? 1 : -1;
-    // Choose u = 0.62 so slice radius = sqrt(1 - 0.62^2) ≈ 0.785m (big & unmistakable!)
-    // and xCenter = 0.62 * R * |cos(theta)| > 0.082m for all blocked angles!
-    return 0.62 * wMax * sign;
+  // The marked interval is the overlap in X, as seen looking toward the slit.
+  getWallOverlapX(slice) {
+    const outer = Math.abs(slice.xCenter) + slice.semiX;
+    if (!slice.intersects || outer <= this.config.slitHalfWidth) return null;
+    const inner = Math.max(this.config.slitHalfWidth, Math.abs(slice.xCenter) - slice.semiX);
+    return (slice.xCenter < 0 ? -1 : 1) * (inner + outer) / 2;
   }
 
-  startCollisionInspect() {
-    const targetW = this.computeTiltedCollisionInspectW();
-    if (Math.abs(targetW) > 0.01) {
-      this.inspectTargetW = targetW;
-      this.inspectModeActive = true;
-      return targetW;
-    }
-    return 0;
+  get observedWallOverlapX() {
+    return this.hasInspectableContact ? this.getWallOverlapX(this.getSliceAtPlayerW()) : null;
   }
 
-  clearCollisionInspect() {
-    this.inspectTargetW = 0;
-    this.inspectModeActive = false;
+  // A lightly tilted ball spans very little W. Scale hand-controlled travel
+  // to its extent so one wheel notch can still reveal an intermediate slice.
+  exploreOrbW(wheelUnits) {
+    const step = Math.max(0.12, this.getExtents().wMax) / 8;
+    return this.shiftPlayerW(wheelUnits * step);
   }
 
-  stepInspectW(dtSec) {
-    const diff = this.inspectTargetW - this.inspectW;
-    if (Math.abs(diff) < 1e-4) {
-      this.inspectW = this.inspectTargetW;
-      const arrivedAtEvidence = this.inspectModeActive && Math.abs(this.inspectW) > 0.01;
-      if (arrivedAtEvidence) {
-        this.hasDiscoveredAllWWall = true;
-      }
-      return { arrivedAtEvidence };
-    }
-    const alpha = Math.min(1, dtSec * 3.4);
-    this.inspectW += diff * alpha;
-    const closeEnough =
-      this.inspectModeActive &&
-      Math.abs(this.inspectTargetW) > 0.01 &&
-      Math.abs(this.inspectTargetW - this.inspectW) < Math.abs(this.inspectTargetW) * 0.14;
-    if (closeEnough) {
-      this.hasDiscoveredAllWWall = true;
-    }
-    return { arrivedAtEvidence: closeEnough };
+  get canReconnectAtPedestal() {
+    return !this.completed && this.hasPassedSlit && this.isOnNorthPedestal();
   }
 
   /**
@@ -321,9 +272,15 @@ export class Level14HairlineSlitState {
    */
   getCurrentPuzzlePhase() {
     if (this.completed) return 'completed';
+    if (!this.grabbed && this.canReconnectAtPedestal) return 'north_reconnect';
+    if (!this.getSliceAtPlayerW().intersects) return 'find_orb_layer';
     if (this.isOnNorthPedestal(this.orbZ)) return 'north_restore';
     if (!this.grabbed && !this.hasRotated4DWhileGrabbed) return 'approach';
     if (this.isBladeThinEnough(this.thetaDeg)) return 'blade_ready';
+    if (this.lastBlockEvent?.type === 'too_wide_for_slit' && this.hasBumpedWhileTilted) {
+      if (this.getExtents().xMax <= this.config.slitHalfWidth) return 'slit_margin';
+      if (this.hasInspectableContact) return 'wall_contact';
+    }
     const distFrom0 = angularDistanceMod180Deg(this.thetaDeg, 0);
     if (distFrom0 >= 4) return 'tilted';
     return 'grabbed_flat';
@@ -378,19 +335,22 @@ export class Level14HairlineSlitState {
   }
 
   /**
-   * Shift player along fourth dimension W (walk mode mouse wheel).
+   * Shift the observer while keeping the orb's position and orientation fixed.
    */
   shiftPlayerW(deltaW) {
     const prev = this.playerPos[3];
-    const next = clamp(prev + deltaW, this.config.playerWMin, this.config.playerWMax);
+    const clamped = clamp(prev + deltaW, this.config.playerWMin, this.config.playerWMax);
+    const next = Math.abs(clamped) < EPSILON ? 0 : clamped;
     this.playerPos[3] = next;
     this.wMinVisited = Math.min(this.wMinVisited, next);
     this.wMaxVisited = Math.max(this.wMaxVisited, next);
 
     if (Math.abs(next) >= 0.75 || this.wMaxVisited - this.wMinVisited >= 1.2) {
       this.hasExploredW = true;
-      this.hasDiscoveredAllWWall = true;
       this._updateBeats();
+    }
+    if ((!this.grabbed && this.hasExploredW) || this.observedWallOverlapX !== null) {
+      this.hasDiscoveredAllWWall = true;
     }
     return {
       w: next,
@@ -463,6 +423,8 @@ export class Level14HairlineSlitState {
   }
 
   canGrabOrb() {
+    if (this.canReconnectAtPedestal) return true;
+    if (!this.getSliceAtPlayerW().intersects) return false;
     const dx = this.playerPos[0] - 0;
     const dz = this.playerPos[2] - this.orbZ;
     const dist = Math.hypot(dx, dz);
@@ -475,13 +437,9 @@ export class Level14HairlineSlitState {
         return { grabbed: false, reason: 'already_completed' };
       }
       if (!this.canGrabOrb()) {
-        return { grabbed: false, reason: 'too_far' };
+        return { grabbed: false, reason: this.getSliceAtPlayerW().intersects ? 'too_far' : 'other_layer' };
       }
       this.grabbed = true;
-      // Align player W cleanly to 0 in Grab Stage so main view shows our 3D slice
-      this.playerPos[3] = 0;
-      this.clearCollisionInspect();
-      this.inspectW = 0;
       if (this.beat < 1) {
         this.beat = 1;
       }
@@ -490,10 +448,8 @@ export class Level14HairlineSlitState {
 
     // Releasing grab MUST ALWAYS succeed (including after victory!) so camera is never trapped
     this.grabbed = false;
-    this.clearCollisionInspect();
-    this.inspectW = 0;
     if (this.playerPos[2] > this.config.wallZMin - 1.2) {
-      this.playerPos = [0, 1.85, -6.2, 0];
+      this.playerPos = [0, 1.85, -6.2, this.playerPos[3]];
     }
     return { grabbed: false, reason: 'released' };
   }
@@ -503,8 +459,6 @@ export class Level14HairlineSlitState {
     if (this.viewMode === 'side_xzw') {
       this.hasOpenedSideView = true;
       this._updateBeats();
-    } else {
-      this.clearCollisionInspect();
     }
     return this.viewMode;
   }
@@ -569,12 +523,12 @@ export class Level14HairlineSlitState {
       };
     }
 
+    if (candidateDeg !== this.thetaDeg) {
+      this.lastBlockEvent = null;
+    }
     this.thetaDeg = candidateDeg;
     if (Math.abs(deltaDeg) > 0.01) {
       this.hasRotated4DWhileGrabbed = true;
-      if (this.inspectModeActive) {
-        this.clearCollisionInspect();
-      }
     }
     if (this.isBladeThinEnough(this.thetaDeg)) {
       this.hasReachedBladeState = true;
@@ -628,10 +582,11 @@ export class Level14HairlineSlitState {
       this.lastBlockEvent = {
         type: 'too_wide_for_slit',
         message:
-          distFrom0 >= 4
-            ? '眼前这一片够薄，但球似乎被什么挡住了'
-            : '球太宽，进不去这道 16 厘米的缝',
+          extents.xMax <= this.config.slitHalfWidth
+            ? '球身贴着缝边，再转一点，给两边留出空隙'
+            : distFrom0 >= 4 ? '整颗球在缝口停住了' : '球比缝宽，推不进去',
       };
+      if (this.observedWallOverlapX !== null) this.hasDiscoveredAllWWall = true;
       this._updateBeats();
       return {
         applied: targetZ !== prevZ,
@@ -643,6 +598,9 @@ export class Level14HairlineSlitState {
     }
 
     this.orbZ = targetZ;
+    if (targetZ !== prevZ) {
+      this.lastBlockEvent = null;
+    }
     if (this.orbZ >= this.config.wallZMax + this.config.radiusR * 0.6) {
       this.hasPassedSlit = true;
     }
@@ -691,28 +649,34 @@ export class Level14HairlineSlitState {
   }
 
   getHonestViewBadge() {
-    const ext = this.getExtents();
-    const sl = this.grabbed ? this.getSliceAtGrabObserveW() : this.getSliceAtPlayerW();
+    const w = this.playerPos[3];
+    const layer = w === 0 ? '原层' : `观察层 W ${w > 0 ? '+' : ''}${w.toFixed(2)}`;
+    const mode = this.viewMode === 'side_xzw' ? 'side_xzw' : this.grabbed ? 'slice' : 'walk';
+    if (!this.grabbed && this.canReconnectAtPedestal) {
+      return { mode, title: '球已放在墙后的金色底座上', detail: '按 E 重新操控底座上的球。' };
+    }
+    if (!this.completed && !this.getSliceAtPlayerW().intersects) {
+      return { mode, title: `${layer} · 这里没有球身`, detail: '反向拨滚轮，或按 C 回原层找到青色球。' };
+    }
+    if (this.hasInspectableContact) {
+      return this.observedWallOverlapX !== null
+        ? { mode, title: `${layer} · 球身越过了缝边`, detail: '对照同一条缝边。反向换层，看青色圆会回到哪里。' }
+        : { mode, title: `${layer} · 青色截面落在缝内`, detail: '拨动滚轮沿 W 轴走，看看别处的青色圆在哪。' };
+    }
     if (this.viewMode === 'side_xzw') {
-      const inspecting = this.inspectModeActive && Math.abs(this.inspectW) > 0.01;
       return {
         mode: 'side_xzw',
-        title: inspecting
-          ? `第四维度侧视图 · 已切至相邻层 (w = ${this.inspectW >= 0 ? '+' : ''}${this.inspectW.toFixed(2)})`
-          : `第四维度侧视图 · 球体半径恒为 ${ext.rigidRadiusInvariant.toFixed(2)}m（从未压扁）`,
-        detail: inspecting
-          ? '注意看：换到这一层，墙和缝仍在原位，球身正抵着缝外墙面'
-          : `观察 △ 与 ○ 两端在左右方向上如何向缝内收拢（当前总宽 ${ext.xMax.toFixed(2)}m）`,
+        title: `第四维侧视 · 球的半径始终是 ${this.config.radiusR.toFixed(2)}m`,
+        detail: '金色外轮廓把球在各层占的位置叠在了一起。',
       };
     }
     if (this.grabbed) {
       return {
         mode: 'slice',
         title: '我们所在的三维切面 · 正在操控圆球',
-        detail: `滚轮：旋转手中的球 · W/S：前后推拉 · Tab：查看侧视图`,
+        detail: w === 0 ? 'Shift + 滚轮转球 · W/S 推拉 · Tab 看侧视' : `${layer} · 滚轮沿 W 轴移动 · C 回原层`,
       };
     }
-    const w = this.playerPos[3];
     const sign = w >= 0 ? '+' : '';
     return {
       mode: 'walk',

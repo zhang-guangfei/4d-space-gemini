@@ -9,7 +9,6 @@ import test from 'node:test';
 import {
   LEVEL14_CONFIG,
   Level14HairlineSlitState,
-  computeOblateSpheroidSliceAtW,
 } from '../src/core/sanctuary-4d.js';
 import {
   LEVEL_HINTS,
@@ -194,7 +193,7 @@ test('Rendering anti-regression invariants: Ghost material strictly disables dep
   );
 });
 
-test('Level 14 discovery-first guidance: neighboring colliding w-layer math & context-aware H hints', () => {
+test('Level 14 discovery-first guidance: opening and context-aware H hints', () => {
   const s = new Level14HairlineSlitState();
   const ctrl = new TieredHintController(14);
 
@@ -203,21 +202,7 @@ test('Level 14 discovery-first guidance: neighboring colliding w-layer math & co
   assert.equal(s.hasDiscoveredAllWWall, false);
   assert.doesNotMatch(s.getHonestViewBadge().detail, /贯穿整个/);
 
-  // 2. Across tilted blocked angles, computeTiltedCollisionInspectW ALWAYS chooses a neighboring w-layer
-  //    where a large circular orb cross-section exists AND sits clearly outside the ±0.082m slit hitting the wall!
-  for (const deg of [10, 20, 35, 50, 65, 78]) {
-    const wInspect = s.computeTiltedCollisionInspectW(deg);
-    assert.ok(Math.abs(wInspect) > 0.05, `Expected non-zero inspectW at ${deg}°`);
-    const sl = computeOblateSpheroidSliceAtW((deg * Math.PI) / 180, wInspect);
-    assert.equal(sl.intersects, true, `Neighboring layer at ${deg}° must contain orb body`);
-    assert.ok(sl.semiY >= 0.75, `Neighboring orb cross-section at ${deg}° must be visibly large (>= 0.75m)`);
-    assert.ok(
-      Math.abs(sl.xCenter) > LEVEL14_CONFIG.slitHalfWidth,
-      `Neighboring orb slice center (${sl.xCenter.toFixed(3)}m) at ${deg}° must sit outside ±0.082m slit hitting the wall`
-    );
-  }
-
-  // 3. Phase progression & context-aware H hints on North Pedestal (never repeats opening coin hint!)
+  // 2. Phase progression & context-aware H hints on North Pedestal (never repeats opening coin hint!)
   s.playerPos = [0, 1.85, -4.8, 0];
   s.setGrabbed(true);
   assert.equal(s.getCurrentPuzzlePhase(), 'grabbed_flat');
@@ -241,4 +226,125 @@ test('Level 14 discovery-first guidance: neighboring colliding w-layer math & co
   assert.equal(northH3.tier, 2);
   assert.equal(northH3Final.tier, 3);
   assert.match(northH3Final.text, /反向/);
+});
+
+test('碰壁与 Tab 保持当前 W；玩家能在固定倾角下逐层查看两侧并原路返回', () => {
+  for (const openFirst of [true, false]) {
+    const state = new Level14HairlineSlitState();
+    state.playerPos = [0, 1.85, -4.8, 0];
+    state.setGrabbed(true);
+    state.rotateOrb4D(84);
+    if (openFirst) state.toggleViewMode();
+    assert.equal(state.pushOrbZ(1.1).blocked, true);
+    if (!openFirst) state.toggleViewMode();
+    const z = state.orbZ;
+    const xyz = state.playerPos.slice(0, 3);
+    assert.equal(state.hasInspectableContact, true);
+    assert.equal(state.playerPos[3], 0);
+    assert.equal(state.getSliceAtPlayerW().xCenter, 0);
+    assert.equal(state.hasDiscoveredAllWWall, false);
+    assert.match(state.getHonestViewBadge().title, /原层.*缝内/);
+
+    for (const direction of [1, -1]) {
+      state.exploreOrbW(direction);
+      const firstW = state.playerPos[3];
+      assert.equal(Math.sign(firstW), direction);
+      assert.equal(state.observedWallOverlapX, null);
+      assert.match(state.getHonestViewBadge().title, /缝内/);
+      for (let i = 0; i < 6; i++) state.exploreOrbW(direction);
+      const overlap = state.observedWallOverlapX;
+      const slice = state.getSliceAtPlayerW();
+      assert.ok(overlap * direction > state.config.slitHalfWidth);
+      assert.ok(Math.abs(overlap - slice.xCenter) <= slice.semiX);
+      assert.equal(state.hasDiscoveredAllWWall, true);
+      assert.match(state.getHonestViewBadge().title, /越过/);
+
+      const w = state.playerPos[3];
+      state.toggleViewMode();
+      state.toggleViewMode();
+      state.pushOrbZ(0.1);
+      assert.equal(state.playerPos[3], w);
+      assert.equal(state.observedWallOverlapX, overlap);
+      state.exploreOrbW(2 * direction);
+      assert.equal(state.getSliceAtPlayerW().intersects, false);
+      assert.equal(state.observedWallOverlapX, null);
+      assert.match(state.getHonestViewBadge().detail, /C 回原层/);
+      state.exploreOrbW(-9 * direction);
+      assert.equal(state.playerPos[3], 0);
+      assert.equal(state.getSliceAtPlayerW().xCenter, 0);
+      assert.equal(state.orbZ, z);
+      assert.equal(state.thetaDeg, 84);
+      assert.deepEqual(state.playerPos.slice(0, 3), xyz);
+    }
+
+    state.pushOrbZ(-0.25);
+    assert.equal(state.hasInspectableContact, false);
+    state.pushOrbZ(0.4);
+    state.rotateOrb4D(1.4);
+    assert.equal(state.pushOrbZ(0.2).blocked, true);
+    assert.equal(state.getCurrentPuzzlePhase(), 'slit_margin');
+    assert.equal(state.hasInspectableContact, false);
+    assert.equal(state.observedWallOverlapX, null);
+  }
+});
+
+test('越界标记落在当前真实截面，负方向、反转和刚好擦边的倾角都成立', () => {
+  for (const angle of [7, -7, 10, 20, 35, 50, 65, 78, 84, -84, 85.29, 94.71, 96, 173, 264, 276]) {
+    const state = new Level14HairlineSlitState();
+    state.playerPos = [0, 1.85, -4.8, 0];
+    state.setGrabbed(true);
+    state.rotateOrb4D(angle);
+    state.pushOrbZ(1.1);
+    assert.equal(state.observedWallOverlapX, null, String(angle));
+    for (const sign of [1, -1]) {
+      const w = sign * 0.999 * state.getExtents().wMax;
+      state.shiftPlayerW(w - state.playerPos[3]);
+      const slice = state.getSliceAtPlayerW();
+      const x = state.observedWallOverlapX;
+      assert.ok(Math.abs(x) > state.config.slitHalfWidth, String(angle));
+      assert.ok(Math.abs(x - slice.xCenter) <= slice.semiX, String(angle));
+    }
+  }
+});
+
+test('轻转后一次滚轮仍能看到球身；抓放、推拉、旋转保留玩家所选的观察层', () => {
+  const s = new Level14HairlineSlitState();
+  s.playerPos = [0, 1.85, -4.8, 0];
+  s.setGrabbed(true);
+  s.rotateOrb4D(7);
+  s.exploreOrbW(1.4);
+  const w = s.playerPos[3];
+  const slice = s.getSliceAtPlayerW();
+  assert.ok(slice.intersects && slice.xCenter > s.config.slitHalfWidth);
+  s.setGrabbed(false);
+  s.setGrabbed(true);
+  s.pushOrbZ(0.1);
+  s.rotateOrb4D(7);
+  assert.equal(s.playerPos[3], w);
+  assert.equal(s.observedWallOverlapX, null);
+  s.pushOrbZ(1.1);
+  assert.equal(s.playerPos[3], w);
+  assert.ok(s.observedWallOverlapX > s.config.slitHalfWidth);
+  assert.equal(s.hasDiscoveredAllWWall, true);
+  s.reset();
+  assert.equal(s.playerPos[3], 0);
+});
+
+test('开场走到空层可回原层；北台松手后可原地重新操控并完成', () => {
+  const s = new Level14HairlineSlitState();
+  s.playerPos = [0, 1.85, -5, 0];
+  s.shiftPlayerW(0.392);
+  assert.equal(s.getCurrentPuzzlePhase(), 'find_orb_layer');
+  assert.equal(s.canGrabOrb(), false);
+  s.shiftPlayerW(-s.playerPos[3]);
+  assert.equal(s.setGrabbed(true).grabbed, true);
+  s.rotateOrb4D(91);
+  s.pushOrbZ(3);
+  s.pushOrbZ(3.5);
+  assert.equal(s.isOnNorthPedestal(), true);
+  s.setGrabbed(false);
+  assert.equal(s.getCurrentPuzzlePhase(), 'north_reconnect');
+  assert.match(s.getHonestViewBadge().detail, /按 E/);
+  assert.equal(s.setGrabbed(true).grabbed, true);
+  assert.equal(s.rotateOrb4D(-91).completed, true);
 });
