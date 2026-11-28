@@ -1,0 +1,44 @@
+{
+  "venus": {
+    "highTriangles": 24058,
+    "lowTriangles": 5999,
+    "bounds": {
+      "min": [
+        -0.327687531709671,
+        0.0,
+        -0.30091869831085205
+      ],
+      "max": [
+        0.327687531709671,
+        2.0,
+        0.30091869831085205
+      ]
+    },
+    "up": "+Y",
+    "front": "+Z",
+    "heightMeters": 2,
+    "sourceFile": "venus-preview.glb",
+    "normalSource": "original GLB split/corner normals; distant normals sampled from original smooth field"
+  },
+  "david": {
+    "highTriangles": 152556,
+    "lowTriangles": 8000,
+    "bounds": {
+      "min": [
+        -0.45175114274024963,
+        0.0,
+        -0.2841416895389557
+      ],
+      "max": [
+        0.45175114274024963,
+        2.0,
+        0.2841416895389557
+      ]
+    },
+    "up": "+Y",
+    "front": "+Z",
+    "heightMeters": 2,
+    "sourceFile": "david-preview.glb",
+    "normalSource": "original GLB split/corner normals; distant normals sampled from original smooth field"
+  }
+}
