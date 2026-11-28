@@ -725,6 +725,168 @@ export function createPassingOrbCrystalPBR(scene) {
 }
 
 /**
+ * High-Dimensional Astrolabe Interior Cross-Section PBR (Slice Concept 2):
+ * Shown whenever the 4D sphere is sliced (tilted or viewed from another W layer) so the
+ * interior cross-section looks like a true sliced alien crystal core rather than squashed exterior skin!
+ * - Sharp glowing brushed-gold outer shell rim
+ * - Deep translucent jade-teal crystal interior
+ * - Precision concentric golden astrolabe micro-rings, ticks, and radial energy conduits
+ * - Luminous cyan-white singularity core at the center
+ */
+export function createPassingOrbSlicePBR(scene) {
+  const B = globalThis.BABYLON;
+  const size = 512;
+  const cx = size * 0.5;
+  const cy = size * 0.5;
+  const R = size * 0.49;
+
+  const albedoTex = new B.DynamicTexture('aaa_orb_slice_albedo', { width: size, height: size }, scene, true);
+  const emissiveTex = new B.DynamicTexture('aaa_orb_slice_emissive', { width: size, height: size }, scene, true);
+  const aCtx = albedoTex.getContext();
+  const eCtx = emissiveTex.getContext();
+
+  // 1. Deep dark jade-teal crystalline interior gradient
+  const aBase = aCtx.createRadialGradient(cx, cy, R * 0.04, cx, cy, R);
+  aBase.addColorStop(0.0, '#E8FFFC');
+  aBase.addColorStop(0.14, '#5EF0E0');
+  aBase.addColorStop(0.28, '#146260');
+  aBase.addColorStop(0.72, '#0A3336');
+  aBase.addColorStop(0.94, '#072226');
+  aBase.addColorStop(1.0, '#D4B062');
+  aCtx.fillStyle = aBase;
+  aCtx.fillRect(0, 0, size, size);
+
+  const eBase = eCtx.createRadialGradient(cx, cy, R * 0.02, cx, cy, R);
+  eBase.addColorStop(0.0, '#FFFFFF');
+  eBase.addColorStop(0.12, '#8CFFF2');
+  eBase.addColorStop(0.24, '#1B807C');
+  eBase.addColorStop(0.55, '#072629');
+  eBase.addColorStop(0.92, '#031214');
+  eBase.addColorStop(1.0, '#C49A45');
+  eCtx.fillStyle = eBase;
+  eCtx.fillRect(0, 0, size, size);
+
+  // Subtle internal crystalline depth facets
+  for (let i = 0; i < 18; i += 1) {
+    const ang = (i / 18) * Math.PI * 2 + 0.2;
+    const dist = R * (0.34 + ((i * 37) % 45) / 100);
+    const px = cx + Math.cos(ang) * dist;
+    const py = cy + Math.sin(ang) * dist;
+    const rad = 28 + ((i * 19) % 38);
+    const g = aCtx.createRadialGradient(px, py, 2, px, py, rad);
+    g.addColorStop(0, 'rgba(72, 232, 214, 0.14)');
+    g.addColorStop(1, 'rgba(10, 50, 52, 0)');
+    aCtx.fillStyle = g;
+    aCtx.beginPath();
+    aCtx.arc(px, py, rad, 0, Math.PI * 2);
+    aCtx.fill();
+  }
+
+  // Helper to stroke precision brushed-gold astrolabe inlays on both albedo & emissive
+  const strokeGold = (drawFn, width, aColor = '#F3D07A', eColor = 'rgba(247, 198, 84, 0.72)') => {
+    aCtx.save();
+    aCtx.strokeStyle = aColor;
+    aCtx.lineWidth = width;
+    drawFn(aCtx);
+    aCtx.stroke();
+    aCtx.restore();
+
+    eCtx.save();
+    eCtx.strokeStyle = eColor;
+    eCtx.lineWidth = width * 0.9;
+    drawFn(eCtx);
+    eCtx.stroke();
+    eCtx.restore();
+  };
+
+  // 2. Precision concentric golden astrolabe micro-rings
+  const rings = [
+    { frac: 0.22, w: 2.2, e: 'rgba(255, 224, 140, 0.92)' },
+    { frac: 0.28, w: 1.2, e: 'rgba(247, 198, 84, 0.55)' },
+    { frac: 0.42, w: 2.0, e: 'rgba(255, 216, 118, 0.80)' },
+    { frac: 0.47, w: 1.1, e: 'rgba(247, 198, 84, 0.48)' },
+    { frac: 0.62, w: 2.2, e: 'rgba(255, 216, 118, 0.82)' },
+    { frac: 0.67, w: 1.1, e: 'rgba(247, 198, 84, 0.45)' },
+    { frac: 0.82, w: 1.6, e: 'rgba(247, 198, 84, 0.62)' },
+  ];
+  for (const r of rings) {
+    strokeGold((ctx) => {
+      ctx.beginPath();
+      ctx.arc(cx, cy, R * r.frac, 0, Math.PI * 2);
+    }, r.w, '#F5D482', r.e);
+  }
+
+  // 3. Astronomical degree ticks between concentric bands (0.42..0.47 and 0.62..0.67)
+  strokeGold(
+    (ctx) => {
+      ctx.beginPath();
+      for (let k = 0; k < 48; k += 1) {
+        const a = (k / 48) * Math.PI * 2;
+        const r0 = R * 0.42;
+        const r1 = R * (k % 4 === 0 ? 0.485 : 0.465);
+        ctx.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0);
+        ctx.lineTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1);
+      }
+      for (let k = 0; k < 64; k += 1) {
+        const a = (k / 64) * Math.PI * 2;
+        const r0 = R * 0.62;
+        const r1 = R * (k % 8 === 0 ? 0.69 : 0.665);
+        ctx.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0);
+        ctx.lineTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1);
+      }
+    },
+    1.1,
+    'rgba(248, 218, 136, 0.85)',
+    'rgba(247, 198, 84, 0.50)'
+  );
+
+  // 4. Radial high-dimensional energy channels (8 primary axes + 4 diagonal chords)
+  strokeGold(
+    (ctx) => {
+      ctx.beginPath();
+      for (let k = 0; k < 8; k += 1) {
+        const a = (k / 8) * Math.PI * 2;
+        const rStart = k % 2 === 0 ? R * 0.22 : R * 0.42;
+        ctx.moveTo(cx + Math.cos(a) * rStart, cy + Math.sin(a) * rStart);
+        ctx.lineTo(cx + Math.cos(a) * (R * 0.94), cy + Math.sin(a) * (R * 0.94));
+      }
+    },
+    1.5,
+    'rgba(248, 218, 136, 0.82)',
+    'rgba(247, 198, 84, 0.58)'
+  );
+
+  // 5. Crisp brushed-gold outer shell cut rim
+  strokeGold(
+    (ctx) => {
+      ctx.beginPath();
+      ctx.arc(cx, cy, R * 0.96, 0, Math.PI * 2);
+    },
+    8.5,
+    '#FFE294',
+    'rgba(255, 218, 118, 0.95)'
+  );
+
+  albedoTex.update();
+  emissiveTex.update();
+
+  const mat = new B.PBRMaterial('aaa_orb_slice_pbr', scene);
+  mat.albedoColor = new B.Color3(1, 1, 1);
+  mat.albedoTexture = albedoTex;
+  mat.metallic = 0.35;
+  mat.roughness = 0.14;
+  mat.emissiveColor = new B.Color3(1, 1, 1);
+  mat.emissiveTexture = emissiveTex;
+  mat.clearCoat.isEnabled = true;
+  mat.clearCoat.intensity = 0.85;
+  mat.clearCoat.roughness = 0.06;
+  mat.backFaceCulling = false;
+  mat.disableDepthWrite = false;
+  mat.needDepthPrePass = false;
+  return mat;
+}
+
+/**
  * Soft Volumetric Light Shaft Curtain Material (vertical alpha falloff, zero depthWrite, additive glow).
  */
 export function createVolumetricShaftMaterial(scene, name, hexColor = '#FFE9B8', opacity = 0.16) {

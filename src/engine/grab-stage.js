@@ -388,19 +388,7 @@ export class GrabStageController {
       }
     }
 
-    // 7. Matching Hollow △ (Left) & ○ (Right) Diameter Markers with smooth fly-in landing animation!
-    const tEase = 1 - Math.pow(1 - this.markerEntryProgress, 3);
-    const triX = lerp(cx - 46, triTargetX, tEase);
-    const triY = lerp(16, triTargetY, tEase);
-    const circX = lerp(cx + 46, circTargetX, tEase);
-    const circY = lerp(16, circTargetY, tEase);
-
-    const triStroke = isBlade ? PALETTE.accent.emerald : '#FFB84D';
-    const circStroke = isBlade ? PALETTE.accent.emerald : PALETTE.accent.platinum;
-    drawTriangleMarker(ctx, triX, triY, 7.6, '#14100A', triStroke);
-    drawCircleMarker(ctx, circX, circY, 7.0, '#14100A', circStroke);
-
-    // 8. Clear Human-Readable Labels (ZERO "W=0切片" jargon!)
+    // 7. Clear Human-Readable Labels (ZERO "W=0切片" jargon!)
     ctx.font = '600 11px "Inter", "PingFang SC", sans-serif';
     ctx.fillStyle = PALETTE.accent.goldWPos;
     ctx.textAlign = 'left';
@@ -423,10 +411,10 @@ export class GrabStageController {
         ? '#FFD1D1'
         : PALETTE.accent.platinum;
     const footerMsg = isBlade
-      ? '两端都已收进缝内，可以往前推了'
+      ? '整颗球已收进缝内，可以往前推了'
       : overlapX !== null
         ? '红圈标出这一层越过缝边的球身'
-        : !activeSlice.intersects ? '这一层没有切到球身' : '△ 和 ○ 标出同一颗球的两端';
+        : !activeSlice.intersects ? '这一层没有切到球身' : '青色为当前层截面 · 金色为整颗球';
     ctx.fillText(footerMsg, cx, cssH - 8);
     ctx.textAlign = 'left';
 

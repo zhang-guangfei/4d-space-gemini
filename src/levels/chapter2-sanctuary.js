@@ -18,6 +18,7 @@ import {
   createAntiqueBronzePBR,
   createCarvedObsidianMonolithPBR,
   createPassingOrbCrystalPBR,
+  createPassingOrbSlicePBR,
   createSanctuaryEnvironmentTexture,
   createSanctuaryMarblePBR,
   createSanctuaryMirrorFloorPBR,
@@ -923,7 +924,7 @@ export class Level14SanctuaryScene {
     this.orbRoot.position.set(0, LEVEL14_CONFIG.orbCenterY, LEVEL14_CONFIG.orbStartZ);
     this.orbRoot.parent = this.root;
 
-    // 1. Exact W-slice AAA Alien Relic Crystal Sphere (pure sphere silhouette — zero external rings/handles!)
+    // 1. Full 3D Alien Relic Crystal Sphere (shown when flat in our 3D layer; zero external rings/handles!)
     this.orbCoreMat = createPassingOrbCrystalPBR(s);
     this.orbSliceCore = B.MeshBuilder.CreateSphere('orb_slice_core', { diameter: 2.0, segments: 48 }, s);
     this.orbSliceCore.material = this.orbCoreMat;
@@ -931,7 +932,58 @@ export class Level14SanctuaryScene {
     this.orbSliceCore.parent = this.orbRoot;
     this._registerMesh(this.orbSliceCore, { freeze: false, mirror: true, shadow: true });
 
-    // 2. 4D Projection Envelope (hidden by default; visible ONLY in Tab Side View)
+    // 1b. Dedicated High-Dimensional Astrolabe Interior Cross-Section Disc (Slice Concept 2)
+    // Shown whenever the 4D sphere is sliced (tilted or viewed from another W layer) so the cut face
+    // reveals the true interior astrolabe crystal core + brushed-gold shell rim!
+    this.orbSliceDiscRoot = new B.TransformNode('orb_slice_disc_root', s);
+    this.orbSliceDiscRoot.parent = this.orbRoot;
+
+    this.orbSliceMat = createPassingOrbSlicePBR(s);
+    this.orbSliceRimMat = new B.PBRMaterial('aaa_orb_slice_rim_mat', s);
+    this.orbSliceRimMat.albedoColor = B.Color3.FromHexString('#FFE294');
+    this.orbSliceRimMat.emissiveColor = B.Color3.FromHexString(PALETTE.accent.goldWPos).scale(0.95);
+    this.orbSliceRimMat.metallic = 0.88;
+    this.orbSliceRimMat.roughness = 0.22;
+    this.orbSliceRimMat.needDepthPrePass = false;
+
+    const sliceRim = B.MeshBuilder.CreateCylinder(
+      'orb_slice_rim',
+      { diameter: 2.0, height: 2.0, tessellation: 48, hasRings: false },
+      s
+    );
+    sliceRim.rotation.z = Math.PI * 0.5;
+    sliceRim.material = this.orbSliceRimMat;
+    sliceRim.renderingGroupId = RENDER_GROUPS.PUZZLE_AND_GHOSTS;
+    sliceRim.parent = this.orbSliceDiscRoot;
+    this._registerMesh(sliceRim, { freeze: false, mirror: true });
+
+    const sliceFacePos = B.MeshBuilder.CreateDisc(
+      'orb_slice_face_pos',
+      { radius: 0.995, tessellation: 48 },
+      s
+    );
+    sliceFacePos.position.set(1.005, 0, 0);
+    sliceFacePos.rotation.y = -Math.PI * 0.5;
+    sliceFacePos.material = this.orbSliceMat;
+    sliceFacePos.renderingGroupId = RENDER_GROUPS.PUZZLE_AND_GHOSTS;
+    sliceFacePos.parent = this.orbSliceDiscRoot;
+    this._registerMesh(sliceFacePos, { freeze: false, mirror: true });
+
+    const sliceFaceNeg = B.MeshBuilder.CreateDisc(
+      'orb_slice_face_neg',
+      { radius: 0.995, tessellation: 48 },
+      s
+    );
+    sliceFaceNeg.position.set(-1.005, 0, 0);
+    sliceFaceNeg.rotation.y = Math.PI * 0.5;
+    sliceFaceNeg.material = this.orbSliceMat;
+    sliceFaceNeg.renderingGroupId = RENDER_GROUPS.PUZZLE_AND_GHOSTS;
+    sliceFaceNeg.parent = this.orbSliceDiscRoot;
+    this._registerMesh(sliceFaceNeg, { freeze: false, mirror: true });
+
+    this.orbSliceDiscRoot.setEnabled(false);
+
+    // 2. 4D Projection Envelope (hidden by default; visible ONLY in Tab Side View — zero △/○ beacons!)
     this.orbProjRoot = new B.TransformNode('orb_4d_projection_root', s);
     this.orbProjRoot.parent = this.orbRoot;
 
@@ -941,37 +993,6 @@ export class Level14SanctuaryScene {
     this.orbProjShell.isPickable = false;
     this.orbProjShell.renderingGroupId = RENDER_GROUPS.PUZZLE_AND_GHOSTS;
     this.orbProjShell.parent = this.orbProjRoot;
-
-    // Tab Side View 4D-Envelope △ & ○ beacons (only shown when Tab Side View is open)
-    this.projBeaconMat = new B.PBRMaterial('orb_proj_beacon_mat', s);
-    this.projBeaconMat.albedoColor = B.Color3.FromHexString(PALETTE.accent.goldWPos);
-    this.projBeaconMat.emissiveColor = B.Color3.FromHexString(PALETTE.accent.goldWPos).scale(1.85);
-    this.projBeaconMat.metallic = 0.2;
-    this.projBeaconMat.roughness = 0.16;
-    this.projBeaconMat.needDepthPrePass = false;
-
-    this.orbProjTri = B.MeshBuilder.CreateTorus(
-      'orb_proj_triangle',
-      { diameter: 0.30, thickness: 0.058, tessellation: 3 },
-      s
-    );
-    this.orbProjTri.rotation.x = Math.PI * 0.5;
-    this.orbProjTri.rotation.z = Math.PI * 0.5;
-    this.orbProjTri.material = this.projBeaconMat;
-    this.orbProjTri.isPickable = false;
-    this.orbProjTri.renderingGroupId = RENDER_GROUPS.CHARACTERS_AND_WIREFRAMES;
-    this.orbProjTri.parent = this.orbRoot;
-
-    this.orbProjCirc = B.MeshBuilder.CreateTorus(
-      'orb_proj_circle',
-      { diameter: 0.28, thickness: 0.055, tessellation: 24 },
-      s
-    );
-    this.orbProjCirc.rotation.x = Math.PI * 0.5;
-    this.orbProjCirc.material = this.projBeaconMat;
-    this.orbProjCirc.isPickable = false;
-    this.orbProjCirc.renderingGroupId = RENDER_GROUPS.CHARACTERS_AND_WIREFRAMES;
-    this.orbProjCirc.parent = this.orbRoot;
 
     // Focused Wall-Contact Collision Highlight Patch (lights up ONLY the protruding contact region on the wall!)
     this.contactPatchMat = createGhostMaterial(s, 'wall_contact_patch_mat', PALETTE.accent.amberCoral, 0.34);
@@ -1237,34 +1258,33 @@ export class Level14SanctuaryScene {
     this.orbRoot.position.set(0, LEVEL14_CONFIG.orbCenterY + hoverOffset, state.orbZ);
     this.orbLight.position.set(0, LEVEL14_CONFIG.orbCenterY + hoverOffset + 0.25, state.orbZ);
 
+    const isSlicedView = isTilted || isInspectingOtherW;
     if (slice.intersects) {
-      this.orbSliceCore.setEnabled(true);
-      this.orbSliceCore.position.set(slice.xCenter, 0, 0);
-      const sx = Math.max(0.004, slice.semiX);
+      const sx = Math.max(0.006, slice.semiX);
       const sy = Math.max(0.05, slice.semiY);
       const sz = Math.max(0.05, slice.semiZ);
-      this.orbSliceCore.scaling.set(sx, sy, sz);
+      if (isSlicedView) {
+        this.orbSliceCore.setEnabled(false);
+        this.orbSliceDiscRoot.setEnabled(true);
+        this.orbSliceDiscRoot.position.set(slice.xCenter, 0, 0);
+        this.orbSliceDiscRoot.scaling.set(sx, sy, sz);
+        this.orbSliceMat.emissiveColor = new B.Color3(1, 1, 1).scale(1.05 + this.sliceConfirmPulse * 0.75);
+      } else {
+        this.orbSliceDiscRoot.setEnabled(false);
+        this.orbSliceCore.setEnabled(true);
+        this.orbSliceCore.position.set(slice.xCenter, 0, 0);
+        this.orbSliceCore.scaling.set(sx, sy, sz);
+      }
     } else {
       this.orbSliceCore.setEnabled(false);
+      this.orbSliceDiscRoot.setEnabled(false);
     }
 
-    // 2c. Tab Side View 4D Projection Envelope + matching rotating △ & ○ beacons at ±ext.xMax!
+    // 2c. Tab Side View 4D Projection Envelope (clean golden silhouette — no △/○ beacons!)
     const show4DProjection = state.viewMode === 'side_xzw' && !state.keyInserted && !state.completed;
     this.orbProjShell.setEnabled(show4DProjection);
-    this.orbProjTri.setEnabled(show4DProjection);
-    this.orbProjCirc.setEnabled(show4DProjection);
     if (show4DProjection) {
       this.orbProjRoot.scaling.set(ext.xMax, 1.0, 1.0);
-      const beaconX = Math.cos(state.thetaRad) * state.config.radiusR;
-      this.orbProjTri.position.set(-beaconX, 0, 0);
-      this.orbProjCirc.position.set(beaconX, 0, 0);
-      const beaconHex = isBlade
-        ? PALETTE.accent.emerald
-        : this.contactHighlight > 0.05 || state.observedWallOverlapX !== null
-          ? PALETTE.accent.amberCoral
-          : PALETTE.accent.goldWPos;
-      this.projBeaconMat.albedoColor = B.Color3.FromHexString(beaconHex);
-      this.projBeaconMat.emissiveColor = B.Color3.FromHexString(beaconHex).scale(1.85);
       this.orbProjShellMat.emissiveColor = B.Color3.FromHexString(PALETTE.accent.goldWPos).scale(0.85);
     } else {
       this.orbProjRoot.scaling.set(1.0, 1.0, 1.0);

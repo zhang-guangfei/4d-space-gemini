@@ -143,11 +143,11 @@ export const LEVEL_HINTS = Object.freeze({
       },
       {
         speaker: 'tomb',
-        text: '盯着侧视图里 △ 和 ○ 这两个端点，按住 Shift 继续拨滚轮，让它们在左右方向上一起收进两道亮缝之间。',
+        text: '盯着侧视图里球身的两端，按住 Shift 继续拨滚轮，让整颗球在左右方向上一起收进两道亮缝之间。',
       },
       {
         speaker: 'tomb',
-        text: '把球在第四维转满 90 度让 △ 和 ○ 收进亮缝，按 W 推过狭缝到达对面底座，再按住 Shift 反向拨滚轮放平它。',
+        text: '把球在第四维转满 90 度让整颗球收进亮缝，按 W 推过狭缝到达对面底座，再按住 Shift 反向拨滚轮放平它。',
       },
     ],
   },
@@ -219,17 +219,17 @@ export const LEVEL14_PHASE_HINTS = Object.freeze({
   ],
   tilted_side_open: [
     { speaker: 'tomb', text: '青色是这一层的截面。金色轮廓标出了整颗球占的地方，它们一样宽吗？' },
-    { speaker: 'tomb', text: '盯着侧视图里的 △ 和 ○ 两端：按住 Shift 继续拨滚轮，观察它们如何在左右方向上向缝内靠拢。' },
-    { speaker: 'tomb', text: '按住 Shift 继续拨滚轮转满 90 度，等 △ 和 ○ 都收进两道亮缝之间、缝边亮起绿光，再按 W 推过去。' },
+    { speaker: 'tomb', text: '盯着侧视图里球身的两端：按住 Shift 继续拨滚轮，观察它们如何在左右方向上向缝内靠拢。' },
+    { speaker: 'tomb', text: '按住 Shift 继续拨滚轮转满 90 度，等球身两端都收进两道亮缝之间、缝边亮起绿光，再按 W 推过去。' },
   ],
   wall_contact: [
     { speaker: 'tomb', text: '按 Tab 对准缝边，再拨滚轮。沿 W 轴走到哪里，会看到圆伸出缝外？' },
     { speaker: 'tomb', text: '对照两层的缝边。墙沿第四维延伸，另一层里的球身也得进得去。' },
-    { speaker: 'tomb', text: '按住 Shift 拨滚轮把球立直，直到 △ 和 ○ 都收进缝内、缝边亮绿，再按 W 推。' },
+    { speaker: 'tomb', text: '按住 Shift 拨滚轮把球立直，直到整颗球都收进缝内、缝边亮绿，再按 W 推。' },
   ],
   wall_contact_side_open: [
     { speaker: 'tomb', text: '在侧视图上来回拨滚轮，沿 W 轴观察。哪一层的青色圆伸出了缝边？' },
-    { speaker: 'tomb', text: '每一层都有同一道缝。转动球，看看 △ 和 ○ 在左右方向上占多宽。' },
+    { speaker: 'tomb', text: '每一层都有同一道缝。转动球，看看整颗球在左右方向上占多宽。' },
     { speaker: 'tomb', text: '继续转到整颗球立直，两端都进缝、缝边亮绿，再按 W 推。' },
   ],
   slit_margin: [
