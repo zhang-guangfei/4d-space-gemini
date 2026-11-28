@@ -470,53 +470,252 @@ export function createSanctuaryMarblePBR(scene, name = 'aaa_marble_pbr') {
  */
 export function createPassingOrbCrystalPBR(scene) {
   const B = globalThis.BABYLON;
-  const size = 512;
-  const tex = new B.DynamicTexture('aaa_orb_energy_tex', { width: size, height: size }, scene, true);
-  const ctx = tex.getContext();
+  const w = 1024;
+  const h = 512;
+  const albedoTex = new B.DynamicTexture('aaa_orb_alien_albedo', { width: w, height: h }, scene, true);
+  const emissiveTex = new B.DynamicTexture('aaa_orb_alien_emissive', { width: w, height: h }, scene, true);
+  const aCtx = albedoTex.getContext();
+  const eCtx = emissiveTex.getContext();
 
-  // Deep luminous translucent-feel crystal core base
-  const grad = ctx.createLinearGradient(0, 0, 0, size);
-  grad.addColorStop(0, '#D8FFF9');
-  grad.addColorStop(0.5, '#58E8D8');
-  grad.addColorStop(1, '#D8FFF9');
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, size, size);
+  // 1. Deep translucent alien jade-teal crystal base (albedo + internal cosmic energy glow)
+  const baseGrad = aCtx.createLinearGradient(0, 0, 0, h);
+  baseGrad.addColorStop(0, '#0C3E40');
+  baseGrad.addColorStop(0.25, '#125F5D');
+  baseGrad.addColorStop(0.5, '#187C76');
+  baseGrad.addColorStop(0.75, '#125F5D');
+  baseGrad.addColorStop(1, '#0C3E40');
+  aCtx.fillStyle = baseGrad;
+  aCtx.fillRect(0, 0, w, h);
 
-  // Precision sacred astronomical latitude/longitude engraving lines
-  ctx.strokeStyle = 'rgba(255, 250, 232, 0.42)';
-  ctx.lineWidth = 1.6;
-  for (let y = 32; y < size; y += 64) {
+  const emBase = eCtx.createLinearGradient(0, 0, 0, h);
+  emBase.addColorStop(0, '#041C1E');
+  emBase.addColorStop(0.5, '#0B3A3A');
+  emBase.addColorStop(1, '#041C1E');
+  eCtx.fillStyle = emBase;
+  eCtx.fillRect(0, 0, w, h);
+
+  // 2. Cosmic-cube style internal plasma/energy clouds & luminous cyan veins
+  const drawGlowBlob = (ctx, cx, cy, r, colorInner, colorOuter) => {
+    const g = ctx.createRadialGradient(cx, cy, r * 0.05, cx, cy, r);
+    g.addColorStop(0, colorInner);
+    g.addColorStop(1, colorOuter);
+    ctx.fillStyle = g;
     ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(size, y);
-    ctx.stroke();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fill();
+  };
+
+  for (let i = 0; i < 28; i += 1) {
+    const px = ((i * 197 + 61) % w);
+    const py = 70 + ((i * 131 + 43) % (h - 140));
+    const pr = 42 + ((i * 29) % 76);
+    drawGlowBlob(aCtx, px, py, pr, 'rgba(72, 240, 220, 0.24)', 'rgba(20, 120, 115, 0)');
+    drawGlowBlob(eCtx, px, py, pr * 0.9, 'rgba(77, 238, 220, 0.34)', 'rgba(10, 60, 60, 0)');
   }
-  for (let x = 32; x < size; x += 64) {
+
+  // Organic glowing cosmic energy filaments
+  const drawEnergyVein = (ctx, startX, startY, seed, color, lineW) => {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lineW;
+    ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, size);
+    let x = startX;
+    let y = startY;
+    ctx.moveTo(x, y);
+    for (let s = 1; s <= 18; s += 1) {
+      x += 22 + Math.sin(seed + s * 1.3) * 14;
+      y += Math.cos(seed * 1.7 + s * 0.9) * 20;
+      ctx.lineTo(x, y);
+    }
     ctx.stroke();
+  };
+
+  for (let i = 0; i < 12; i += 1) {
+    const sx = (i * 93) % w;
+    const sy = 96 + ((i * 71) % (h - 192));
+    drawEnergyVein(aCtx, sx, sy, i * 2.1, 'rgba(128, 255, 240, 0.22)', 2.4);
+    drawEnergyVein(eCtx, sx, sy, i * 2.1, 'rgba(110, 255, 238, 0.42)', 1.8);
   }
 
-  // Equator double calibration band
-  ctx.strokeStyle = 'rgba(255, 246, 214, 0.85)';
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.moveTo(0, size * 0.5 - 6);
-  ctx.lineTo(size, size * 0.5 - 6);
-  ctx.moveTo(0, size * 0.5 + 6);
-  ctx.lineTo(size, size * 0.5 + 6);
-  ctx.stroke();
+  // 3. Recessed alien geometric conduit channels (dark carved groove + brushed gold inlay)
+  const strokeBoth = (drawFn, goldWidth, goldColor, emGoldColor) => {
+    // Dark recessed groove on albedo
+    aCtx.save();
+    aCtx.strokeStyle = 'rgba(5, 22, 24, 0.72)';
+    aCtx.lineWidth = goldWidth + 3.2;
+    drawFn(aCtx);
+    aCtx.stroke();
+    // Brushed gold inlay on albedo
+    aCtx.strokeStyle = goldColor;
+    aCtx.lineWidth = goldWidth;
+    drawFn(aCtx);
+    aCtx.stroke();
+    aCtx.restore();
 
-  tex.update();
+    // Soft warm-gold emission
+    eCtx.save();
+    eCtx.strokeStyle = emGoldColor;
+    eCtx.lineWidth = goldWidth * 0.9;
+    drawFn(eCtx);
+    eCtx.stroke();
+    eCtx.restore();
+  };
+
+  const cy = h * 0.5;
+
+  // Dual equatorial golden energy conduits with delicate diamond nodes
+  strokeBoth(
+    (ctx) => {
+      ctx.beginPath();
+      ctx.moveTo(0, cy - 10);
+      ctx.lineTo(w, cy - 10);
+      ctx.moveTo(0, cy + 10);
+      ctx.lineTo(w, cy + 10);
+    },
+    2.2,
+    '#F5D276',
+    'rgba(247, 198, 84, 0.65)'
+  );
+
+  // Subtle polar latitude harmonic rings + alien micro-ticks
+  for (const latY of [96, 152, h - 152, h - 96]) {
+    strokeBoth(
+      (ctx) => {
+        ctx.beginPath();
+        ctx.moveTo(0, latY);
+        ctx.lineTo(w, latY);
+        for (let x = 16; x < w; x += 32) {
+          ctx.moveTo(x, latY - 5);
+          ctx.lineTo(x, latY + 5);
+        }
+      },
+      1.3,
+      'rgba(245, 210, 118, 0.72)',
+      'rgba(247, 198, 84, 0.36)'
+    );
+  }
+
+  // Sweeping meridian sacred arcs connecting the 4 cardinal medallions
+  for (const mx of [0, w * 0.25, w * 0.5, w * 0.75, w]) {
+    strokeBoth(
+      (ctx) => {
+        ctx.beginPath();
+        ctx.moveTo(mx, 44);
+        ctx.lineTo(mx, h - 44);
+      },
+      1.8,
+      'rgba(245, 210, 118, 0.8)',
+      'rgba(247, 198, 84, 0.45)'
+    );
+  }
+
+  // 4. Flush Alien Polar Totem Medallions (ZERO protrusion — etched right into the sphere skin!)
+  const drawMedallionBase = (cx, radius) => {
+    // Dark carved recess + glowing inner backdrop
+    drawGlowBlob(aCtx, cx, cy, radius * 1.12, 'rgba(6, 28, 30, 0.85)', 'rgba(6, 28, 30, 0)');
+    drawGlowBlob(eCtx, cx, cy, radius * 1.05, 'rgba(92, 255, 238, 0.55)', 'rgba(12, 60, 62, 0)');
+
+    strokeBoth(
+      (ctx) => {
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+        ctx.moveTo(cx + radius * 0.82, cy);
+        ctx.arc(cx, cy, radius * 0.82, 0, Math.PI * 2);
+        // Alien radial astronomical ticks between outer & inner rings
+        for (let k = 0; k < 16; k += 1) {
+          const ang = (k / 16) * Math.PI * 2;
+          const r0 = radius * (k % 2 === 0 ? 0.83 : 0.88);
+          const r1 = radius * 0.98;
+          ctx.moveTo(cx + Math.cos(ang) * r0, cy + Math.sin(ang) * r0);
+          ctx.lineTo(cx + Math.cos(ang) * r1, cy + Math.sin(ang) * r1);
+        }
+      },
+      2.6,
+      '#FFE08A',
+      'rgba(255, 215, 110, 0.85)'
+    );
+  };
+
+  // Left Pole (-X) & Right Pole (+X) sit at u = 0.0 (wraps at 0 & w) and u = 0.5 on Babylon spheres;
+  // Front (-Z) & Back (+Z) sit at u = 0.25 and u = 0.75.
+  // Draw Star-Chevron Totem at u = 0.0 (both 0 and w for seamless wrap) and Concentric Eclipse Totem at u = 0.5!
+  const drawStarChevronTotem = (cx, r) => {
+    drawMedallionBase(cx, r);
+    const drawGlyph = (ctx) => {
+      ctx.beginPath();
+      // 6-point sharp alien star-chevron
+      for (let i = 0; i < 6; i += 1) {
+        const a1 = (i / 6) * Math.PI * 2 - Math.PI / 2;
+        const a2 = ((i + 0.5) / 6) * Math.PI * 2 - Math.PI / 2;
+        const rOut = i % 2 === 0 ? r * 0.68 : r * 0.46;
+        const rIn = r * 0.22;
+        if (i === 0) ctx.moveTo(cx + Math.cos(a1) * rOut, cy + Math.sin(a1) * rOut);
+        else ctx.lineTo(cx + Math.cos(a1) * rOut, cy + Math.sin(a1) * rOut);
+        ctx.lineTo(cx + Math.cos(a2) * rIn, cy + Math.sin(a2) * rIn);
+      }
+      ctx.closePath();
+      // Inner triangle core
+      for (let i = 0; i < 3; i += 1) {
+        const a = (i / 3) * Math.PI * 2 - Math.PI / 2;
+        const px = cx + Math.cos(a) * r * 0.34;
+        const py = cy + Math.sin(a) * r * 0.34;
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+    };
+    strokeBoth(drawGlyph, 3.0, '#D6FFF8', 'rgba(145, 255, 240, 0.98)');
+  };
+
+  const drawEclipseRingTotem = (cx, r) => {
+    drawMedallionBase(cx, r);
+    const drawGlyph = (ctx) => {
+      ctx.beginPath();
+      ctx.arc(cx, cy, r * 0.52, 0, Math.PI * 2);
+      ctx.moveTo(cx + r * 0.28, cy);
+      ctx.arc(cx, cy, r * 0.28, 0, Math.PI * 2);
+      // Four alien crescent arcs
+      for (let i = 0; i < 4; i += 1) {
+        const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
+        ctx.moveTo(cx + Math.cos(a) * r * 0.30, cy + Math.sin(a) * r * 0.30);
+        ctx.lineTo(cx + Math.cos(a) * r * 0.68, cy + Math.sin(a) * r * 0.68);
+      }
+    };
+    strokeBoth(drawGlyph, 3.0, '#D6FFF8', 'rgba(145, 255, 240, 0.98)');
+  };
+
+  const drawCentralSeal = (cx, r) => {
+    drawMedallionBase(cx, r);
+    const drawGlyph = (ctx) => {
+      ctx.beginPath();
+      // Diamond + inner ring alien lock core
+      ctx.moveTo(cx, cy - r * 0.62);
+      ctx.lineTo(cx + r * 0.62, cy);
+      ctx.lineTo(cx, cy + r * 0.62);
+      ctx.lineTo(cx - r * 0.62, cy);
+      ctx.closePath();
+      ctx.moveTo(cx + r * 0.26, cy);
+      ctx.arc(cx, cy, r * 0.26, 0, Math.PI * 2);
+    };
+    strokeBoth(drawGlyph, 2.5, '#FFE8A0', 'rgba(255, 224, 130, 0.9)');
+  };
+
+  drawStarChevronTotem(0, 74);
+  drawStarChevronTotem(w, 74);
+  drawEclipseRingTotem(w * 0.5, 74);
+  drawCentralSeal(w * 0.25, 56);
+  drawCentralSeal(w * 0.75, 56);
+
+  albedoTex.update();
+  emissiveTex.update();
 
   const mat = new B.PBRMaterial('aaa_orb_crystal_pbr', scene);
-  mat.albedoColor = B.Color3.FromHexString(PALETTE.accent.cyanW0);
-  mat.albedoTexture = tex;
-  mat.metallic = 0.22;
-  mat.roughness = 0.08;
-  mat.emissiveColor = B.Color3.FromHexString(PALETTE.accent.cyanW0).scale(0.52);
-  mat.emissiveTexture = tex;
+  mat.albedoColor = new B.Color3(1, 1, 1);
+  mat.albedoTexture = albedoTex;
+  mat.metallic = 0.28;
+  mat.roughness = 0.10;
+  mat.emissiveColor = new B.Color3(1, 1, 1);
+  mat.emissiveTexture = emissiveTex;
   mat.clearCoat.isEnabled = true;
   mat.clearCoat.intensity = 1.0;
   mat.clearCoat.roughness = 0.04;

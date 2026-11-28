@@ -45,45 +45,109 @@ export class SoundFxEngine {
     }
   }
 
+  /**
+   * Ethereal Celestial Sanctuary Ambience (空灵音效):
+   * Pure high-register crystalline D-Lydian shimmer pad with slow breathing LFOs
+   * and whisper-soft airy overtones — zero low-frequency rumble or drone!
+   */
   startSanctuaryAmbience() {
     if (this.ambienceNodes || !this.unlock()) return;
     try {
-      const now = this.ctx.currentTime;
-      const droneGain = this.ctx.createGain();
-      droneGain.gain.setValueAtTime(0.0001, now);
-      droneGain.gain.exponentialRampToValueAtTime(0.055, now + 2.5);
+      const ctx = this.ctx;
+      const now = ctx.currentTime;
+      const nodes = {};
 
-      const filter = this.ctx.createBiquadFilter();
-      filter.type = 'lowpass';
-      filter.frequency.value = 340;
-      filter.Q.value = 1.8;
+      const padGain = ctx.createGain();
+      padGain.gain.setValueAtTime(0.0001, now);
+      padGain.gain.exponentialRampToValueAtTime(0.042, now + 3.2);
 
-      const osc1 = this.ctx.createOscillator();
-      osc1.type = 'sine';
-      osc1.frequency.value = 73.42; // D2 cathedral fundamental
+      // Gentle airy highpass + soft bell-like lowpass to keep tone crystalline & weightless
+      const hp = ctx.createBiquadFilter();
+      hp.type = 'highpass';
+      hp.frequency.value = 240;
 
-      const osc2 = this.ctx.createOscillator();
-      osc2.type = 'triangle';
-      osc2.frequency.value = 110.0; // A2 fifth overtone
+      const lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.value = 2400;
+      lp.Q.value = 0.7;
 
-      const osc3 = this.ctx.createOscillator();
-      osc3.type = 'sine';
-      osc3.frequency.value = 146.83; // D3 octave shimmer
+      hp.connect(lp);
+      lp.connect(padGain);
+      padGain.connect(this.masterGain);
+      nodes.padGain = padGain;
+      nodes.hp = hp;
+      nodes.lp = lp;
 
-      const g3 = this.ctx.createGain();
-      g3.gain.value = 0.28;
+      // Ethereal D-Major-9 / Lydian crystalline voices (D4, A4, E5, F#5, A5) with slow LFO breathing
+      const voices = [
+        { freq: 293.66, amp: 0.28, lfoHz: 0.065, depth: 0.10 },
+        { freq: 440.0, amp: 0.24, lfoHz: 0.095, depth: 0.11 },
+        { freq: 659.25, amp: 0.18, lfoHz: 0.13, depth: 0.09 },
+        { freq: 739.99, amp: 0.12, lfoHz: 0.17, depth: 0.07 },
+        { freq: 880.0, amp: 0.10, lfoHz: 0.11, depth: 0.06 },
+      ];
 
-      osc1.connect(filter);
-      osc2.connect(filter);
-      osc3.connect(g3);
-      g3.connect(filter);
-      filter.connect(droneGain);
-      droneGain.connect(this.masterGain);
+      voices.forEach((v, idx) => {
+        const osc = ctx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.value = v.freq;
 
-      osc1.start(now);
-      osc2.start(now);
-      osc3.start(now);
-      this.ambienceNodes = { osc1, osc2, osc3, droneGain };
+        const vGain = ctx.createGain();
+        vGain.gain.value = v.amp;
+
+        const lfo = ctx.createOscillator();
+        lfo.type = 'sine';
+        lfo.frequency.value = v.lfoHz;
+
+        const lfoGain = ctx.createGain();
+        lfoGain.gain.value = v.depth;
+
+        lfo.connect(lfoGain);
+        lfoGain.connect(vGain.gain);
+        osc.connect(vGain);
+        vGain.connect(hp);
+
+        osc.start(now);
+        lfo.start(now);
+
+        nodes[`osc_${idx}`] = osc;
+        nodes[`lfo_${idx}`] = lfo;
+        nodes[`vGain_${idx}`] = vGain;
+        nodes[`lfoGain_${idx}`] = lfoGain;
+      });
+
+      // Whisper-soft airy high-bandpass shimmer (celestial wind in high vault)
+      const len = ctx.sampleRate * 3;
+      const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+      const data = buf.getChannelData(0);
+      let prev = 0;
+      for (let i = 0; i < len; i += 1) {
+        const white = Math.random() * 2 - 1;
+        prev = 0.85 * prev + white * 0.15;
+        data[i] = prev;
+      }
+      const air = ctx.createBufferSource();
+      air.buffer = buf;
+      air.loop = true;
+
+      const airBp = ctx.createBiquadFilter();
+      airBp.type = 'bandpass';
+      airBp.frequency.value = 1450;
+      airBp.Q.value = 1.4;
+
+      const airGain = ctx.createGain();
+      airGain.gain.value = 0.06;
+
+      air.connect(airBp);
+      airBp.connect(airGain);
+      airGain.connect(padGain);
+      air.start(now);
+
+      nodes.air = air;
+      nodes.airBp = airBp;
+      nodes.airGain = airGain;
+
+      this.ambienceNodes = nodes;
     } catch {
       // Ignore if audio context is blocked
     }
