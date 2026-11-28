@@ -696,6 +696,60 @@ export class Level14SanctuaryScene {
     this.victoryBeam.renderingGroupId = RENDER_GROUPS.PUZZLE_AND_GHOSTS;
     this.victoryBeam.parent = this.root;
 
+    // 3-Second Key-In-Keyhole Unlock Resonance VFX (dual gyroscopic halos + expanding shockwave rings)
+    this.unlockHaloAMat = createGhostMaterial(s, 'unlock_halo_a_mat', PALETTE.accent.goldWPos, 0.34);
+    this.unlockHaloA = B.MeshBuilder.CreateTorus(
+      'unlock_halo_a',
+      { diameter: 2.9, thickness: 0.08, tessellation: 48 },
+      s
+    );
+    this.unlockHaloA.position.set(0, LEVEL14_CONFIG.orbCenterY, LEVEL14_CONFIG.orbTargetZ);
+    this.unlockHaloA.material = this.unlockHaloAMat;
+    this.unlockHaloA.isVisible = false;
+    this.unlockHaloA.isPickable = false;
+    this.unlockHaloA.renderingGroupId = RENDER_GROUPS.PUZZLE_AND_GHOSTS;
+    this.unlockHaloA.parent = this.root;
+
+    this.unlockHaloBMat = createGhostMaterial(s, 'unlock_halo_b_mat', PALETTE.accent.emerald, 0.34);
+    this.unlockHaloB = B.MeshBuilder.CreateTorus(
+      'unlock_halo_b',
+      { diameter: 3.6, thickness: 0.07, tessellation: 48 },
+      s
+    );
+    this.unlockHaloB.position.set(0, LEVEL14_CONFIG.orbCenterY, LEVEL14_CONFIG.orbTargetZ);
+    this.unlockHaloB.material = this.unlockHaloBMat;
+    this.unlockHaloB.isVisible = false;
+    this.unlockHaloB.isPickable = false;
+    this.unlockHaloB.renderingGroupId = RENDER_GROUPS.PUZZLE_AND_GHOSTS;
+    this.unlockHaloB.parent = this.root;
+
+    this.unlockShockMat = createGhostMaterial(s, 'unlock_shock_mat', PALETTE.accent.platinum, 0.34);
+    this.unlockShockRing = B.MeshBuilder.CreateTorus(
+      'unlock_shock_ring',
+      { diameter: 2.4, thickness: 0.12, tessellation: 56 },
+      s
+    );
+    this.unlockShockRing.position.set(0, LEVEL14_CONFIG.orbCenterY, LEVEL14_CONFIG.orbTargetZ);
+    this.unlockShockRing.material = this.unlockShockMat;
+    this.unlockShockRing.isVisible = false;
+    this.unlockShockRing.isPickable = false;
+    this.unlockShockRing.renderingGroupId = RENDER_GROUPS.PUZZLE_AND_GHOSTS;
+    this.unlockShockRing.parent = this.root;
+
+    this.slitShockMat = createGhostMaterial(s, 'slit_shock_mat', PALETTE.accent.emerald, 0.34);
+    this.slitShockRing = B.MeshBuilder.CreateTorus(
+      'slit_shock_ring',
+      { diameter: 2.2, thickness: 0.1, tessellation: 56 },
+      s
+    );
+    this.slitShockRing.rotation.x = Math.PI * 0.5;
+    this.slitShockRing.position.set(0, LEVEL14_CONFIG.orbCenterY + 0.6, LEVEL14_CONFIG.wallZMin - 0.18);
+    this.slitShockRing.material = this.slitShockMat;
+    this.slitShockRing.isVisible = false;
+    this.slitShockRing.isPickable = false;
+    this.slitShockRing.renderingGroupId = RENDER_GROUPS.PUZZLE_AND_GHOSTS;
+    this.slitShockRing.parent = this.root;
+
     // Sanctuary Monumental Inner Gate at North Wall Z = +19.6m (spans full 35.6m x 22.8m hall!)
     const gateFrame = B.MeshBuilder.CreateBox('sanctuary_gate_frame', { width: 35.6, height: 22.8, depth: 1.2 }, s);
     gateFrame.position.set(0, 11.4, 19.6);
@@ -1254,13 +1308,16 @@ export class Level14SanctuaryScene {
       r.mesh.rotation.z += dtSec * r.speedZ;
     }
 
-    // Advance victory monolith-parting progress first so key orb & portal stay synchronized
-    if (state.completed) {
-      this.monolithOpenProgress = Math.min(1, this.monolithOpenProgress + dtSec * 0.52);
-    } else {
-      this.monolithOpenProgress = 0;
-    }
-    const monolithEased = 1 - Math.pow(1 - this.monolithOpenProgress, 3);
+    // Staged ending choreography:
+    // 'awaiting_release' -> 'unlocking' (3.0s) -> 'opening_door' (5.0s) -> 'door_open'
+    const stage = state.unlockStage || (state.completed ? 'door_open' : 'locked');
+    const isUnlocking = stage === 'unlocking';
+    const isOpeningOrOpen = stage === 'opening_door' || stage === 'door_open';
+    const unlockP = state.unlockAnimProgress ?? 0;
+    const doorP = stage === 'door_open' ? 1 : stage === 'opening_door' ? (state.doorOpenProgress ?? 0) : 0;
+    this.monolithOpenProgress = doorP;
+    const monolithEased =
+      doorP < 0.5 ? 4 * doorP * doorP * doorP : 1 - Math.pow(-2 * doorP + 2, 3) / 2;
 
     const ext = state.getExtents();
     const slice = state.getSliceAtPlayerW();
@@ -1279,9 +1336,15 @@ export class Level14SanctuaryScene {
     }
 
     // 2. Passing Orb exact 4D geometry (Option A: eps=0.001m pure 3D slice default!)
-    const hoverOffset = state.completed
-      ? monolithEased * 2.15 + Math.sin(this.elapsed * 2.2) * 0.06
-      : state.grabbed || state.hasInspectableContact ? 0 : Math.sin(this.elapsed * 2.0) * 0.04;
+    let hoverOffset = state.grabbed || state.hasInspectableContact ? 0 : Math.sin(this.elapsed * 2.0) * 0.04;
+    if (stage === 'awaiting_release') {
+      hoverOffset = Math.sin(this.elapsed * 3.2) * 0.03;
+    } else if (isUnlocking) {
+      const rise = 1 - Math.pow(1 - unlockP, 2);
+      hoverOffset = rise * 1.55 + Math.sin(this.elapsed * (4.0 + unlockP * 10.0)) * 0.04;
+    } else if (isOpeningOrOpen) {
+      hoverOffset = 1.55 + monolithEased * 0.65 + Math.sin(this.elapsed * 2.2) * 0.06;
+    }
     this.orbRoot.position.set(0, LEVEL14_CONFIG.orbCenterY + hoverOffset, state.orbZ);
     this.orbLight.position.set(0, LEVEL14_CONFIG.orbCenterY + hoverOffset + 0.25, state.orbZ);
 
@@ -1298,8 +1361,9 @@ export class Level14SanctuaryScene {
       this.orbMeridianRoot.setEnabled(!isTilted && !isInspectingOtherW);
       this.orbMeridianRoot.position.set(slice.xCenter, 0, 0);
       this.orbMeridianRoot.scaling.set(sx, sy, sz);
-      this.orbRingMat.emissiveColor = B.Color3.FromHexString(PALETTE.accent.goldWPos).scale(1.05);
-      this.orbCenterRingMat.emissiveColor = B.Color3.FromHexString(PALETTE.accent.platinum).scale(1.05);
+      const ringBoost = isUnlocking ? 1.05 + unlockP * 1.65 : isOpeningOrOpen ? 1.85 : 1.05;
+      this.orbRingMat.emissiveColor = B.Color3.FromHexString(PALETTE.accent.goldWPos).scale(ringBoost);
+      this.orbCenterRingMat.emissiveColor = B.Color3.FromHexString(PALETTE.accent.platinum).scale(ringBoost);
     } else {
       this.orbSliceCore.setEnabled(false);
       this.orbMeridianRoot.setEnabled(false);
@@ -1308,7 +1372,7 @@ export class Level14SanctuaryScene {
     // 2b. Horizontal Diameter Polar Markers △ (-X) & ○ (+X) on the 3D sphere:
     // Visible at 0°, smoothly drift outward & fade out over 2°..15° when tilted (reversibly return at 0°!)
     const poleFade = Math.max(0, Math.min(1, 1 - (distFrom0 - 2.0) / 13.0));
-    const showSlicePoles = !state.completed && !isInspectingOtherW && poleFade > 0.04 && state.viewMode !== 'side_xzw';
+    const showSlicePoles = !state.keyInserted && !state.completed && !isInspectingOtherW && poleFade > 0.04 && state.viewMode !== 'side_xzw';
     this.orbPoleTri.setEnabled(showSlicePoles);
     this.orbPoleCirc.setEnabled(showSlicePoles);
     if (showSlicePoles) {
@@ -1323,7 +1387,7 @@ export class Level14SanctuaryScene {
     }
 
     // 2c. Tab Side View 4D Projection Envelope + matching rotating △ & ○ beacons at ±ext.xMax!
-    const show4DProjection = state.viewMode === 'side_xzw' && !state.completed;
+    const show4DProjection = state.viewMode === 'side_xzw' && !state.keyInserted && !state.completed;
     this.orbProjShell.setEnabled(show4DProjection);
     this.orbProjTri.setEnabled(show4DProjection);
     this.orbProjCirc.setEnabled(show4DProjection);
@@ -1344,28 +1408,50 @@ export class Level14SanctuaryScene {
       this.orbProjRoot.scaling.set(1.0, 1.0, 1.0);
     }
 
-    const [qx, qy, qz, qw] = state.orbQuat3D;
-    if (!this.orbMeridianRoot.rotationQuaternion) {
-      this.orbMeridianRoot.rotationQuaternion = new B.Quaternion(qx, qy, qz, qw);
+    if (isUnlocking) {
+      // Accelerating gyroscopic spin during the 3-second key-in-keyhole unlock resonance!
+      const spinAngle = unlockP * unlockP * Math.PI * 8.0;
+      const tiltAngle = Math.sin(unlockP * Math.PI * 3.0) * 0.55;
+      const qSpin = B.Quaternion.FromEulerAngles(tiltAngle, spinAngle, spinAngle * 0.45);
+      this.orbMeridianRoot.rotationQuaternion = qSpin;
     } else {
-      this.orbMeridianRoot.rotationQuaternion.set(qx, qy, qz, qw);
+      const [qx, qy, qz, qw] = state.orbQuat3D;
+      if (!this.orbMeridianRoot.rotationQuaternion) {
+        this.orbMeridianRoot.rotationQuaternion = new B.Quaternion(qx, qy, qz, qw);
+      } else {
+        this.orbMeridianRoot.rotationQuaternion.set(qx, qy, qz, qw);
+      }
     }
 
-    let accentHex = PALETTE.accent.cyanW0;
-    if (state.completed) {
-      accentHex = PALETTE.accent.platinum;
+    let accentColor = B.Color3.FromHexString(PALETTE.accent.cyanW0);
+    let emissiveScale = (isBlade ? 0.95 : 0.62) + this.sliceConfirmPulse * 0.75;
+    if (stage === 'awaiting_release') {
+      const pulse = 0.5 + 0.5 * Math.sin(this.elapsed * 4.2);
+      accentColor = B.Color3.Lerp(
+        B.Color3.FromHexString(PALETTE.accent.cyanW0),
+        B.Color3.FromHexString(PALETTE.accent.goldWPos),
+        0.55 + 0.25 * pulse
+      );
+      emissiveScale = 0.95 + 0.35 * pulse;
+    } else if (isUnlocking) {
+      const gold = B.Color3.FromHexString(PALETTE.accent.goldWPos);
+      const emerald = B.Color3.FromHexString(PALETTE.accent.emerald);
+      const platinum = B.Color3.FromHexString(PALETTE.accent.platinum);
+      accentColor = unlockP < 0.55
+        ? B.Color3.Lerp(gold, emerald, unlockP / 0.55)
+        : B.Color3.Lerp(emerald, platinum, (unlockP - 0.55) / 0.45);
+      emissiveScale = 1.15 + unlockP * 1.45;
+    } else if (isOpeningOrOpen) {
+      accentColor = B.Color3.FromHexString(PALETTE.accent.platinum);
+      emissiveScale = 1.25;
     }
-    const accentColor = B.Color3.FromHexString(accentHex);
     this.orbCoreMat.albedoColor = accentColor;
-    const confirmBoost = this.sliceConfirmPulse * 0.75;
-    this.orbCoreMat.emissiveColor = accentColor.scale(
-      (state.completed ? 1.15 : isBlade ? 0.95 : 0.62) + confirmBoost
-    );
+    this.orbCoreMat.emissiveColor = accentColor.scale(emissiveScale);
     this.orbLight.diffuse = accentColor;
 
-    // Hide decorative YZ plane halo once tilted (> 3°) so it NEVER reads as a solid outer hoop!
-    this.yzPlaneHalo.setEnabled(state.grabbed && !state.completed && !isTilted && !isInspectingOtherW);
-    if (state.grabbed && !isTilted) {
+    // Hide decorative YZ plane halo once tilted (> 3°) or after key is inserted
+    this.yzPlaneHalo.setEnabled(state.grabbed && !state.keyInserted && !state.completed && !isTilted && !isInspectingOtherW);
+    if (state.grabbed && !isTilted && !state.keyInserted) {
       const pulse = 0.30 + Math.sin(this.elapsed * 3.0) * 0.03;
       this.yzHaloMat.alpha = Math.min(0.34, Math.max(0.30, pulse));
     }
@@ -1411,16 +1497,26 @@ export class Level14SanctuaryScene {
         B.Color3.FromHexString(PALETTE.accent.cyanW0),
         this.sliceConfirmPulse
       ).scale(1.65 + this.sliceConfirmPulse * 0.55);
+    } else if (isUnlocking) {
+      // Traveling resonance charge along both 13.6m monolith slit lips during 3s unlock!
+      this.barrierPlane.setEnabled(false);
+      const chargeWave = 0.5 + 0.5 * Math.sin(this.elapsed * (6.0 + unlockP * 14.0));
+      const lipColor = B.Color3.Lerp(
+        B.Color3.FromHexString(PALETTE.accent.goldWPos),
+        B.Color3.FromHexString(PALETTE.accent.emerald),
+        unlockP
+      );
+      this.slitLipMat.emissiveColor = lipColor.scale(1.8 + unlockP * 1.4 + chargeWave * 0.65);
     } else {
       this.barrierPlane.setEnabled(false);
-      const slitColor = isBlade || state.completed
+      const slitColor = isBlade || isOpeningOrOpen || stage === 'awaiting_release'
         ? B.Color3.FromHexString(PALETTE.accent.emerald)
         : B.Color3.FromHexString(PALETTE.accent.platinum);
       this.slitLipMat.emissiveColor = slitColor.scale(1.65);
     }
 
     // 5. North target full-sphere silhouette & contour (pulses brightly on opening AND upon North arrival!)
-    const showNorthTarget = !state.completed;
+    const showNorthTarget = !state.keyInserted && !state.completed;
     this.northTargetGhost.setEnabled(showNorthTarget);
     this.northTargetContour.setEnabled(showNorthTarget);
     if (showNorthTarget) {
@@ -1434,41 +1530,99 @@ export class Level14SanctuaryScene {
       );
     }
 
-    // 6. Victory: Twin 13.6m Monoliths slide wide open (±3.85m -> 7.86m grand gateway!) + Gate + North Portal!
+    // 5b. 3-Second Key-In-Keyhole Unlock Resonance VFX
+    if (isUnlocking) {
+      const orbY = LEVEL14_CONFIG.orbCenterY + hoverOffset;
+      this.unlockHaloA.isVisible = true;
+      this.unlockHaloB.isVisible = true;
+      this.unlockHaloA.position.set(0, orbY, LEVEL14_CONFIG.orbTargetZ);
+      this.unlockHaloB.position.set(0, orbY, LEVEL14_CONFIG.orbTargetZ);
+      const haloScale = 0.65 + unlockP * 0.85;
+      this.unlockHaloA.scaling.setAll(haloScale);
+      this.unlockHaloB.scaling.setAll(haloScale * 1.12);
+      this.unlockHaloA.rotation.set(unlockP * Math.PI * 5.0, unlockP * Math.PI * 3.5, 0.4);
+      this.unlockHaloB.rotation.set(-unlockP * Math.PI * 4.0, unlockP * Math.PI * 6.0, -0.5);
+      this.unlockHaloAMat.alpha = Math.min(0.34, 0.12 + unlockP * 0.22);
+      this.unlockHaloBMat.alpha = Math.min(0.34, 0.10 + unlockP * 0.24);
+
+      // Skyward resonance pillar shoots up during 0.25..1.0 of the 3s unlock
+      const beamP = Math.max(0, Math.min(1, (unlockP - 0.18) / 0.62));
+      this.victoryBeam.isVisible = beamP > 0.01;
+      this.victoryBeam.scaling.set(0.55 + beamP * 0.65, Math.max(0.02, beamP), 0.55 + beamP * 0.65);
+      this.victoryBeamMat.alpha = Math.min(0.34, 0.14 + beamP * 0.20);
+
+      // Climax shockwave ring expands from keyhole & across monolith slit face (t = 1.95s..3.0s)
+      const shockP = Math.max(0, (unlockP - 0.62) / 0.38);
+      if (shockP > 0) {
+        this.unlockShockRing.isVisible = true;
+        this.unlockShockRing.position.set(0, orbY, LEVEL14_CONFIG.orbTargetZ);
+        this.unlockShockRing.scaling.setAll(1.0 + shockP * 4.2);
+        this.unlockShockMat.alpha = Math.max(0.02, 0.34 * (1 - shockP));
+
+        this.slitShockRing.isVisible = true;
+        this.slitShockRing.scaling.setAll(0.7 + shockP * 5.6);
+        this.slitShockMat.alpha = Math.max(0.02, 0.34 * (1 - shockP));
+      } else {
+        this.unlockShockRing.isVisible = false;
+        this.slitShockRing.isVisible = false;
+      }
+
+      const ringPulse = 1.8 + unlockP * 1.8 + Math.sin(this.elapsed * 12) * 0.4;
+      this.northRingMat.emissiveColor = B.Color3.Lerp(
+        B.Color3.FromHexString(PALETTE.accent.goldWPos),
+        B.Color3.FromHexString(PALETTE.accent.emerald),
+        unlockP
+      ).scale(ringPulse);
+      this.orbLight.intensity = 2.4 + unlockP * 3.2;
+    } else {
+      this.unlockHaloA.isVisible = false;
+      this.unlockHaloB.isVisible = false;
+      this.unlockShockRing.isVisible = false;
+      this.slitShockRing.isVisible = false;
+    }
+
+    // 6. Monumental 5-Second Door Opening: Twin 13.6m Monoliths slide wide open (±3.85m -> 7.86m grand gateway!)
     this.monolithLeftGroup.position.x = -monolithEased * 3.85;
     this.monolithRightGroup.position.x = monolithEased * 3.85;
     if (this.slitVolumetricCurtain) {
       this.slitVolumetricCurtain.isVisible = this.monolithOpenProgress < 0.12;
     }
 
-    if (state.completed) {
+    if (isOpeningOrOpen) {
       this.victoryBeam.isVisible = true;
-      this.gateOpenProgress = Math.min(1, this.gateOpenProgress + dtSec * 0.65);
-      const eased = 1 - Math.pow(1 - this.gateOpenProgress, 3);
-      this.gateLeft.position.x = -2.22 - eased * 3.8;
-      this.gateRight.position.x = 2.22 + eased * 3.8;
-      this.gateEmblem.scaling.setAll(1 + eased * 0.25);
-      this.gateEmblem.isVisible = this.gateOpenProgress < 0.7;
+      this.victoryBeam.scaling.set(1, 1, 1);
+      this.victoryBeamMat.alpha = 0.30;
+      this.gateOpenProgress = doorP;
+      this.gateLeft.position.x = -2.22 - monolithEased * 3.8;
+      this.gateRight.position.x = 2.22 + monolithEased * 3.8;
+      this.gateEmblem.scaling.setAll(1 + monolithEased * 0.25);
+      this.gateEmblem.isVisible = doorP < 0.7;
       this.northRingMat.emissiveColor = B.Color3.FromHexString(PALETTE.accent.platinum).scale(1.8);
       this.orbLight.intensity = 3.2;
 
-      // Ignite North Teleportation Pad rings & emerald warp column
-      this.portalBeam.isVisible = true;
+      // Ignite North Teleportation Pad rings & emerald warp column as the walls part
+      this.portalBeam.isVisible = doorP > 0.1;
       this.portalHaloOuter.rotation.z += dtSec * 0.95;
       this.portalHaloOuter.rotation.y = Math.sin(this.elapsed * 0.8) * 0.22;
       this.portalHaloInner.rotation.z -= dtSec * 1.45;
       this.portalHaloInner.rotation.y = -Math.sin(this.elapsed * 1.1) * 0.28;
       const portalPulse = 1.45 + 0.35 * Math.sin(this.elapsed * 3.4);
-      this.portalCoreMat.emissiveColor = B.Color3.FromHexString(PALETTE.accent.emerald).scale(portalPulse);
+      this.portalCoreMat.emissiveColor = B.Color3.FromHexString(PALETTE.accent.emerald).scale(portalPulse * Math.max(0.25, monolithEased));
       this.portalLight.intensity = 3.2 * monolithEased;
-    } else {
+    } else if (!isUnlocking) {
       this.victoryBeam.isVisible = false;
       this.gateOpenProgress = 0;
       this.gateLeft.position.x = -2.22;
       this.gateRight.position.x = 2.22;
       this.gateEmblem.scaling.setAll(1);
       this.gateEmblem.isVisible = true;
-      this.orbLight.intensity = 2.2;
+      if (stage === 'awaiting_release') {
+        const pulse = 1.65 + 0.55 * Math.sin(this.elapsed * 4.5);
+        this.northRingMat.emissiveColor = B.Color3.FromHexString(PALETTE.accent.emerald).scale(pulse);
+        this.orbLight.intensity = 2.8;
+      } else {
+        this.orbLight.intensity = 2.2;
+      }
 
       // Dormant Teleportation Pad
       this.portalBeam.isVisible = false;

@@ -97,23 +97,49 @@ test('Level 14 Beat 2 & 3 (把玩 → 运用): 3D drag never narrows orb, 90° b
   assert.equal(s.isOnNorthPedestal(), true);
   assert.equal(s.completed, false, 'Still thin blade — must rotate back to 0°/180° to complete!');
 
-  // 7. Rotate back to 0° (or 180°) on North Pedestal -> Victory (Key unlocks walls!)
+  // 7. Rotate back to 0° (or 180°) on North Pedestal -> Key inserted, awaiting E release (wall STILL closed!)
   const restore = s.rotateOrb4D(-90);
   assert.equal(restore.applied, true);
-  assert.equal(restore.completed, true);
-  assert.equal(s.completed, true);
-  assert.equal(s.beat, 3, 'Restoring full sphere on North Pedestal completes Beat 3 (运用)');
+  assert.equal(restore.keyInserted, true);
+  assert.equal(s.keyInserted, true);
+  assert.equal(s.unlockStage, 'awaiting_release');
+  assert.equal(s.completed, false, 'Wall must NOT open immediately before releasing E and unlock animation');
+  assert.equal(s.isPlayerBlockedByMonolith(0, 0), true, 'Monolith must remain closed while awaiting E release');
 
-  // 8. Regression test: releasing grab (E) AFTER victory must ALWAYS succeed & never trap player behind wall!
+  // 8. Releasing grab (E) returns player to South side at w=0 and starts 3.0s unlock animation!
   const release = s.setGrabbed(false);
   assert.equal(release.grabbed, false);
+  assert.equal(release.startedUnlockAnim, true);
   assert.equal(s.grabbed, false);
+  assert.equal(s.unlockStage, 'unlocking');
+  assert.equal(s.playerPos[3], 0, 'Released player returns cleanly to w=0 to watch unlock animation');
   assert.ok(s.playerPos[2] < LEVEL14_CONFIG.wallZMin, 'Released player must return cleanly to South side');
+  assert.equal(s.isPlayerBlockedByMonolith(0, 0), true, 'Monolith remains closed during 3s unlock animation');
+
+  // 8b. Step 3.0s unlock animation -> transitions to 5.0s door opening
+  const midUnlock = s.stepUnlockSequence(1.5);
+  assert.equal(midUnlock.stage, 'unlocking');
+  assert.equal(s.isPlayerBlockedByMonolith(0, 0), true);
+  const startDoor = s.stepUnlockSequence(1.5);
+  assert.equal(startDoor.stage, 'opening_door');
+  assert.equal(startDoor.justStartedDoorOpen, true);
+  assert.equal(s.completed, false);
+  assert.equal(s.isPlayerBlockedByMonolith(0, 0), true, 'Monolith remains closed until 5s door opening finishes');
+
+  // 8c. Step 5.0s slow door opening -> completes level & opens passage!
+  const midDoor = s.stepUnlockSequence(2.5);
+  assert.equal(midDoor.stage, 'opening_door');
+  assert.equal(s.doorOpenProgress, 0.5);
+  const finishDoor = s.stepUnlockSequence(2.5);
+  assert.equal(finishDoor.stage, 'door_open');
+  assert.equal(finishDoor.justFinishedDoorOpen, true);
+  assert.equal(s.completed, true);
+  assert.equal(s.beat, 3, 'Completing unlock + door opening finishes Beat 3 (运用)');
 
   // 9. Key-opens-wall & Teleporter progression: monolith opens so player walks through Z=0 onto Teleporter (Z=11.2) in 2x hall!
   assert.ok(LEVEL14_CONFIG.hallHalfX >= 14.0, 'Expanded hall must be >= 2x wider');
   assert.ok(LEVEL14_CONFIG.hallMaxZ - LEVEL14_CONFIG.hallMinZ >= 34.0, 'Expanded hall must be >= 2x longer');
-  assert.equal(s.isPlayerBlockedByMonolith(0, 0), false, 'Monolith wall must open automatically after victory');
+  assert.equal(s.isPlayerBlockedByMonolith(0, 0), false, 'Monolith wall must open once door_open is reached');
   s.playerPos = [0, 1.85, -3.5, 0];
   let reachedPortal = false;
   for (let step = 0; step < 45; step += 1) {
@@ -346,5 +372,10 @@ test('开场走到空层可回原层；北台松手后可原地重新操控并�
   assert.equal(s.getCurrentPuzzlePhase(), 'north_reconnect');
   assert.match(s.getHonestViewBadge().detail, /按 E/);
   assert.equal(s.setGrabbed(true).grabbed, true);
-  assert.equal(s.rotateOrb4D(-91).completed, true);
+  assert.equal(s.rotateOrb4D(-91).keyInserted, true);
+  assert.equal(s.unlockStage, 'awaiting_release');
+  assert.equal(s.setGrabbed(false).startedUnlockAnim, true);
+  s.stepUnlockSequence(LEVEL14_CONFIG.unlockAnimDurationSec);
+  s.stepUnlockSequence(LEVEL14_CONFIG.doorOpenDurationSec);
+  assert.equal(s.completed, true);
 });

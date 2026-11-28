@@ -284,6 +284,103 @@ export class SoundFxEngine {
     });
   }
 
+  playKeyInserted() {
+    if (this.muted || !this.unlock()) return;
+    const now = this.ctx.currentTime;
+    const notes = [440.0, 659.25, 880.0];
+    notes.forEach((f, i) => {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = i === 0 ? 'triangle' : 'sine';
+      osc.frequency.value = f;
+      const t0 = now + i * 0.065;
+      gain.gain.setValueAtTime(0.001, t0);
+      gain.gain.exponentialRampToValueAtTime(0.18, t0 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0008, t0 + 0.72);
+      osc.connect(gain);
+      gain.connect(this.masterGain);
+      osc.start(t0);
+      osc.stop(t0 + 0.75);
+    });
+  }
+
+  /**
+   * 3-second rising harmonic resonance + crystalline burst for key-in-keyhole unlock animation.
+   */
+  playUnlockCharge() {
+    if (this.muted || !this.unlock()) return;
+    const now = this.ctx.currentTime;
+    const freqs = [146.83, 220.0, 293.66, 440.0];
+    freqs.forEach((base, i) => {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = i < 2 ? 'triangle' : 'sine';
+      osc.frequency.setValueAtTime(base, now);
+      osc.frequency.exponentialRampToValueAtTime(base * 2.0, now + 2.75);
+      gain.gain.setValueAtTime(0.001, now);
+      gain.gain.exponentialRampToValueAtTime(0.13 - i * 0.018, now + 2.45);
+      gain.gain.exponentialRampToValueAtTime(0.0006, now + 3.05);
+      osc.connect(gain);
+      gain.connect(this.masterGain);
+      osc.start(now);
+      osc.stop(now + 3.1);
+    });
+    // Crystalline seal-break chime at t = 2.65s
+    [587.33, 880.0, 1174.66].forEach((f, i) => {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = f;
+      const t0 = now + 2.6 + i * 0.05;
+      gain.gain.setValueAtTime(0.001, t0);
+      gain.gain.exponentialRampToValueAtTime(0.16, t0 + 0.025);
+      gain.gain.exponentialRampToValueAtTime(0.0008, t0 + 0.65);
+      osc.connect(gain);
+      gain.connect(this.masterGain);
+      osc.start(t0);
+      osc.stop(t0 + 0.7);
+    });
+  }
+
+  /**
+   * 5-second monumental stone-and-bronze gate opening rumble + resonant overtone swell.
+   */
+  playDoorOpening() {
+    if (this.muted || !this.unlock()) return;
+    const now = this.ctx.currentTime;
+    const sub = this.ctx.createOscillator();
+    const subGain = this.ctx.createGain();
+    sub.type = 'sawtooth';
+    sub.frequency.setValueAtTime(52, now);
+    sub.frequency.linearRampToValueAtTime(44, now + 4.8);
+    const lpf = this.ctx.createBiquadFilter();
+    lpf.type = 'lowpass';
+    lpf.frequency.setValueAtTime(140, now);
+    lpf.frequency.linearRampToValueAtTime(95, now + 4.8);
+    subGain.gain.setValueAtTime(0.001, now);
+    subGain.gain.exponentialRampToValueAtTime(0.16, now + 0.45);
+    subGain.gain.setValueAtTime(0.14, now + 4.1);
+    subGain.gain.exponentialRampToValueAtTime(0.0008, now + 5.05);
+    sub.connect(lpf);
+    lpf.connect(subGain);
+    subGain.connect(this.masterGain);
+    sub.start(now);
+    sub.stop(now + 5.1);
+
+    const drone = this.ctx.createOscillator();
+    const droneGain = this.ctx.createGain();
+    drone.type = 'triangle';
+    drone.frequency.setValueAtTime(110, now);
+    drone.frequency.exponentialRampToValueAtTime(146.83, now + 4.8);
+    droneGain.gain.setValueAtTime(0.001, now);
+    droneGain.gain.exponentialRampToValueAtTime(0.09, now + 0.7);
+    droneGain.gain.exponentialRampToValueAtTime(0.0008, now + 5.05);
+    drone.connect(droneGain);
+    droneGain.connect(this.masterGain);
+    drone.start(now);
+    drone.stop(now + 5.1);
+  }
+
   stopAmbience() {
     if (!this.ambienceNodes) return;
     try {

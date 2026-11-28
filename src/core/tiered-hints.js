@@ -134,7 +134,7 @@ export const LEVEL_HINTS = Object.freeze({
     name: '发丝裂缝',
     opening: {
       speaker: 'tomb',
-      text: '把这颗球送到那边的底座上。',
+      text: '面前是一道挡住去路的巨墙——这颗青色的球，像是开启巨墙的钥匙，而它的钥匙孔就在墙的对面。',
     },
     tiers: [
       {
@@ -246,6 +246,15 @@ export const LEVEL14_PHASE_HINTS = Object.freeze({
     { speaker: 'tomb', text: '看看对面底座亮起的圆球轮廓——还记得它刚才是怎么立起来的吗？' },
     { speaker: 'tomb', text: '它现在还竖立在第四维里。把刚才让它立起来的动作反过来做一次。' },
     { speaker: 'tomb', text: '按住 Shift 反向拨滚轮，把圆球重新放平回我们这一层，它就会完整复原并打开巨墙。' },
+  ],
+  awaiting_release: [
+    { speaker: 'tomb', text: '钥匙已经正确插入锁孔了！按 E 释放对球的控制，回到自由视角。' },
+  ],
+  unlocking: [
+    { speaker: 'tomb', text: '钥匙与锁孔正在共振解锁，稍候片刻……' },
+  ],
+  opening_door: [
+    { speaker: 'tomb', text: '锁已解开，巨墙正在缓缓开启，稍候即可通行……' },
   ],
   completed: [
     { speaker: 'tomb', text: '巨墙已经向两侧敞开，按 WASD 穿过前方通道踏上发光的传送台即可前往下一关。' },

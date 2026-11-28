@@ -52,6 +52,8 @@ export const LEVEL14_CONFIG = Object.freeze({
   playerWMin: -2.2,
   playerWMax: 2.2,
   grabInteractDistance: 4.6,
+  unlockAnimDurationSec: 3.0,
+  doorOpenDurationSec: 5.0,
 });
 
 /**
@@ -199,6 +201,10 @@ export class Level14HairlineSlitState {
     this.hasReachedBladeState = false;
     this.hasPassedSlit = false;
     this.hasAttemptedExpandInsideSlit = false;
+    this.keyInserted = false;
+    this.unlockStage = 'locked'; // 'locked' | 'awaiting_release' | 'unlocking' | 'opening_door' | 'door_open'
+    this.unlockAnimTimer = 0;
+    this.doorOpenTimer = 0;
     this.completed = false;
     this.enteredTeleporter = false;
 
@@ -209,6 +215,14 @@ export class Level14HairlineSlitState {
 
   get thetaRad() {
     return degToRad(this.thetaDeg);
+  }
+
+  get unlockAnimProgress() {
+    return clamp(this.unlockAnimTimer / this.config.unlockAnimDurationSec, 0, 1);
+  }
+
+  get doorOpenProgress() {
+    return clamp(this.doorOpenTimer / this.config.doorOpenDurationSec, 0, 1);
   }
 
   getExtents() {
@@ -263,7 +277,7 @@ export class Level14HairlineSlitState {
   }
 
   get canReconnectAtPedestal() {
-    return !this.completed && this.hasPassedSlit && this.isOnNorthPedestal();
+    return !this.keyInserted && !this.completed && this.hasPassedSlit && this.isOnNorthPedestal();
   }
 
   /**
@@ -272,6 +286,9 @@ export class Level14HairlineSlitState {
    */
   getCurrentPuzzlePhase() {
     if (this.completed) return 'completed';
+    if (this.unlockStage === 'awaiting_release') return 'awaiting_release';
+    if (this.unlockStage === 'unlocking') return 'unlocking';
+    if (this.unlockStage === 'opening_door') return 'opening_door';
     if (!this.grabbed && this.canReconnectAtPedestal) return 'north_reconnect';
     if (!this.getSliceAtPlayerW().intersects) return 'find_orb_layer';
     if (this.isOnNorthPedestal(this.orbZ)) return 'north_restore';
@@ -433,7 +450,7 @@ export class Level14HairlineSlitState {
 
   setGrabbed(shouldGrab) {
     if (shouldGrab) {
-      if (this.completed) {
+      if (this.completed || this.keyInserted) {
         return { grabbed: false, reason: 'already_completed' };
       }
       if (!this.canGrabOrb()) {
@@ -446,12 +463,19 @@ export class Level14HairlineSlitState {
       return { grabbed: true, reason: 'ok' };
     }
 
-    // Releasing grab MUST ALWAYS succeed (including after victory!) so camera is never trapped
+    // Releasing grab MUST ALWAYS succeed (including after key insertion/victory!) so camera is never trapped
     this.grabbed = false;
-    if (this.playerPos[2] > this.config.wallZMin - 1.2) {
+    let startedUnlockAnim = false;
+    if (this.unlockStage === 'awaiting_release') {
+      this.unlockStage = 'unlocking';
+      this.unlockAnimTimer = 0;
+      this.viewMode = 'slice';
+      this.playerPos = [0, 1.85, -6.2, 0];
+      startedUnlockAnim = true;
+    } else if (this.playerPos[2] > this.config.wallZMin - 1.2) {
       this.playerPos = [0, 1.85, -6.2, this.playerPos[3]];
     }
-    return { grabbed: false, reason: 'released' };
+    return { grabbed: false, reason: 'released', startedUnlockAnim };
   }
 
   toggleViewMode() {
@@ -468,7 +492,7 @@ export class Level14HairlineSlitState {
    * Mathematically proves that 3D rotation NEVER alters xMax(theta) or wMax(theta)!
    */
   rotateOrb3D(deltaYawRad, deltaPitchRad) {
-    if (!this.grabbed) return { rotated: false, xMax: this.getExtents().xMax };
+    if (!this.grabbed || this.keyInserted) return { rotated: false, xMax: this.getExtents().xMax };
     const qYaw = qFromAxisAngle([0, 1, 0], deltaYawRad);
     const qPitch = qFromAxisAngle([1, 0, 0], deltaPitchRad);
     this.orbQuat3D = qNormalize(qMul(qYaw, qMul(qPitch, this.orbQuat3D)));
@@ -487,12 +511,14 @@ export class Level14HairlineSlitState {
    * Honestly blocks expanding the orb wider than the slit while inside Z in [-1.2, +1.2]!
    */
   rotateOrb4D(deltaDeg) {
-    if (!this.grabbed) {
+    if (!this.grabbed || this.keyInserted) {
       return {
         applied: false,
         blocked: false,
         thetaDeg: this.thetaDeg,
         extents: this.getExtents(),
+        keyInserted: this.keyInserted,
+        completed: this.completed,
       };
     }
 
@@ -543,6 +569,7 @@ export class Level14HairlineSlitState {
       thetaDeg: this.thetaDeg,
       extents: candidateExtents,
       isBlade: this.isBladeThinEnough(this.thetaDeg),
+      keyInserted: this.keyInserted,
       completed: this.completed,
     };
   }
@@ -552,8 +579,8 @@ export class Level14HairlineSlitState {
    * Blocks entry into the monolith wall slab Z in [-1.2, +1.2] unless xMax(theta) fits through the 0.164m slit!
    */
   pushOrbZ(deltaZ) {
-    if (!this.grabbed) {
-      return { applied: false, blocked: false, orbZ: this.orbZ };
+    if (!this.grabbed || this.keyInserted) {
+      return { applied: false, blocked: false, orbZ: this.orbZ, keyInserted: this.keyInserted };
     }
 
     const prevZ = this.orbZ;
@@ -615,19 +642,53 @@ export class Level14HairlineSlitState {
       orbZ: this.orbZ,
       insideSlit: this.isOrbOverlappingWallZ(this.orbZ),
       onNorthPedestal: this.isOnNorthPedestal(this.orbZ),
+      keyInserted: this.keyInserted,
       completed: this.completed,
     };
   }
 
   _checkVictory() {
-    if (this.completed) return true;
+    if (this.keyInserted || this.completed) return true;
     if (this.isOnNorthPedestal(this.orbZ) && this.isRestoredFullSphere(this.thetaDeg)) {
-      this.completed = true;
+      this.keyInserted = true;
       this.orbZ = this.config.orbTargetZ;
-      this.beat = 3;
+      this.thetaDeg = 0;
+      this.unlockStage = this.grabbed ? 'awaiting_release' : 'unlocking';
+      this.unlockAnimTimer = 0;
+      this.doorOpenTimer = 0;
       return true;
     }
     return false;
+  }
+
+  /**
+   * Advance the staged ending sequence after the player releases the inserted key (E):
+   * 1. 'unlocking'    (3.0s) — key & keyhole resonance unlock animation
+   * 2. 'opening_door' (5.0s) — monumental twin walls slowly part open
+   * 3. 'door_open'           — completed = true, wall opens for passage to Teleporter
+   */
+  stepUnlockSequence(dtSec) {
+    const dt = Math.max(0, dtSec);
+    if (this.unlockStage === 'unlocking') {
+      this.unlockAnimTimer = Math.min(this.config.unlockAnimDurationSec, this.unlockAnimTimer + dt);
+      if (this.unlockAnimTimer >= this.config.unlockAnimDurationSec) {
+        this.unlockStage = 'opening_door';
+        this.doorOpenTimer = 0;
+        return { stage: 'opening_door', justStartedDoorOpen: true, justFinishedDoorOpen: false };
+      }
+      return { stage: 'unlocking', justStartedDoorOpen: false, justFinishedDoorOpen: false };
+    }
+    if (this.unlockStage === 'opening_door') {
+      this.doorOpenTimer = Math.min(this.config.doorOpenDurationSec, this.doorOpenTimer + dt);
+      if (this.doorOpenTimer >= this.config.doorOpenDurationSec) {
+        this.unlockStage = 'door_open';
+        this.completed = true;
+        this.beat = 3;
+        return { stage: 'door_open', justStartedDoorOpen: false, justFinishedDoorOpen: true };
+      }
+      return { stage: 'opening_door', justStartedDoorOpen: false, justFinishedDoorOpen: false };
+    }
+    return { stage: this.unlockStage, justStartedDoorOpen: false, justFinishedDoorOpen: false };
   }
 
   _updateBeats() {
@@ -652,6 +713,15 @@ export class Level14HairlineSlitState {
     const w = this.playerPos[3];
     const layer = w === 0 ? '原层' : `观察层 W ${w > 0 ? '+' : ''}${w.toFixed(2)}`;
     const mode = this.viewMode === 'side_xzw' ? 'side_xzw' : this.grabbed ? 'slice' : 'walk';
+    if (this.unlockStage === 'awaiting_release') {
+      return { mode, title: '钥匙已正确插入锁孔', detail: '请按 E 释放对球的控制，回到自由视角。' };
+    }
+    if (this.unlockStage === 'unlocking') {
+      return { mode: 'walk', title: '钥匙与锁孔正在共振解锁…', detail: '封印即将解除，请注视前方巨墙。' };
+    }
+    if (this.unlockStage === 'opening_door') {
+      return { mode: 'walk', title: '封印已解开 · 巨墙正在缓缓开启…', detail: '等待前方通道完全敞开。' };
+    }
     if (!this.grabbed && this.canReconnectAtPedestal) {
       return { mode, title: '球已放在墙后的金色底座上', detail: '按 E 重新操控底座上的球。' };
     }
@@ -682,10 +752,10 @@ export class Level14HairlineSlitState {
       mode: 'walk',
       title: `我们所在的三维切面 · 第四维坐标 w = ${sign}${w.toFixed(2)}`,
       detail: this.completed
-        ? '巨墙已敞开，请前行踏上北侧传送台进入下一关'
+        ? '巨墙已打开，请前行踏上北侧传送台前往下一关'
         : this.hasDiscoveredAllWWall
           ? '这堵墙沿第四维 w 轴也一直延伸'
-          : '把前方的青色圆球送到墙后方的金色底座上',
+          : '把前方的青色圆球送到墙对面的钥匙孔中',
     };
   }
 }

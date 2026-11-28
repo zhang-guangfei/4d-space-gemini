@@ -1034,8 +1034,8 @@ function boot() {
     const sanctuary3D = new Level14SanctuaryScene(scene, camera);
 
     let lastBeat = 0;
+    let keyInsertedAnnounced = false;
     let victoryAnnounced = false;
-    let autoReleaseTimer = null;
     let openingTimer = null;
     let northStuckTimer = 0;
 
@@ -1056,23 +1056,25 @@ function boot() {
     };
 
     const releaseGrabCleanly = ({ keepVictoryBanner = false } = {}) => {
-      if (autoReleaseTimer) {
-        clearTimeout(autoReleaseTimer);
-        autoReleaseTimer = null;
-      }
       if (!state.grabbed) return;
-      const releasingAtNorthUnrestored = !state.completed && state.isOnNorthPedestal();
-      state.setGrabbed(false);
+      const releasingAtNorthUnrestored = !state.keyInserted && !state.completed && state.isOnNorthPedestal();
+      const rel = state.setGrabbed(false);
       input.setGrabbed(false);
       hud.hideWheelHandoffCue();
       hud.hideSliceCallout();
       hud.setTabAttention(false);
-      input.setLookAngles(0, 0.03);
-      sfx.playGrabLock(false);
-      if (state.completed && !keepVictoryBanner) {
-        hud.dismissVictoryBanner();
-      } else if (releasingAtNorthUnrestored) {
-        voice.speak('tomb', '球留在底座上了。按 E 可以接着转动它。', { durationMs: 5600 });
+      input.setLookAngles(0, rel.startedUnlockAnim ? 0.05 : 0.03);
+      if (rel.startedUnlockAnim) {
+        sfx.playUnlockCharge();
+        hud.flashEdge(PALETTE.accent.goldWPos);
+        voice.speak('tomb', '钥匙与锁孔正在共振解锁……', { durationMs: 3200 });
+      } else {
+        sfx.playGrabLock(false);
+        if (state.completed && !keepVictoryBanner) {
+          hud.dismissVictoryBanner();
+        } else if (releasingAtNorthUnrestored) {
+          voice.speak('tomb', '球留在底座上了。按 E 可以接着转动它。', { durationMs: 5600 });
+        }
       }
     };
 
@@ -1081,6 +1083,20 @@ function boot() {
         lastBeat = state.beat;
         if (state.beat < 3) sfx.playBeatUnlock(state.beat);
       }
+      if (state.keyInserted && !keyInsertedAnnounced) {
+        keyInsertedAnnounced = true;
+        sanctuary3D.setHintHighlight(false);
+        hud.hideSliceCallout();
+        hud.hideWheelHandoffCue();
+        hud.setTabAttention(false);
+        sfx.playKeyInserted();
+        hud.flashEdge(PALETTE.accent.emerald);
+        voice.speak(
+          'tomb',
+          '钥匙已经正确插入锁孔！请按 E 释放对球的控制，回到自由视角。',
+          { durationMs: 7200 }
+        );
+      }
       if (state.completed && !victoryAnnounced) {
         victoryAnnounced = true;
         sanctuary3D.setHintHighlight(false);
@@ -1088,18 +1104,12 @@ function boot() {
         hud.hideWheelHandoffCue();
         hud.setTabAttention(false);
         sfx.playVictory();
+        hud.flashEdge(PALETTE.accent.emerald);
         voice.speak(
           'tomb',
-          '钥匙归位，巨墙打开了。穿过前方通道，踏上传送台前往下一关。',
+          '巨墙已经打开！穿过前方通道，踏上传送台前往下一关。',
           { durationMs: 7400 }
         );
-        if (autoReleaseTimer) clearTimeout(autoReleaseTimer);
-        autoReleaseTimer = setTimeout(() => {
-          autoReleaseTimer = null;
-          if (state.completed && state.grabbed) {
-            releaseGrabCleanly({ keepVictoryBanner: true });
-          }
-        }, 1150);
       }
     };
 
@@ -1150,7 +1160,7 @@ function boot() {
     const opening = hints.getOpeningLine();
     openingTimer = setTimeout(() => {
       if (activeLevelId === 14) {
-        voice.speak(opening.speaker, opening.text, { durationMs: 5200 });
+        voice.speak(opening.speaker, opening.text, { durationMs: 7800 });
       }
     }, 350);
 
@@ -1262,10 +1272,6 @@ function boot() {
       },
       releaseAfterVictory: () => releaseGrabCleanly({ keepVictoryBanner: false }),
       reset: () => {
-        if (autoReleaseTimer) {
-          clearTimeout(autoReleaseTimer);
-          autoReleaseTimer = null;
-        }
         state.reset();
         hints.setLevel(14);
         resetCoaching();
@@ -1276,13 +1282,23 @@ function boot() {
         sanctuary3D.setHintHighlight(false);
         sanctuary3D.triggerOpeningPedestalSpotlight();
         lastBeat = 0;
+        keyInsertedAnnounced = false;
         victoryAnnounced = false;
         syncPauseState();
         const op = hints.getOpeningLine();
-        voice.speak(op.speaker, op.text, { durationMs: 5200 });
+        voice.speak(op.speaker, op.text, { durationMs: 7800 });
       },
       stepFrame: (dtSec) => {
         if (!paused && !guideOpen && !teleporterOpen) {
+          const unlockEvt = state.stepUnlockSequence(dtSec);
+          if (unlockEvt.justStartedDoorOpen) {
+            sfx.playDoorOpening();
+            hud.flashEdge(PALETTE.accent.goldWPos);
+            voice.speak('tomb', '封印已解开，四维巨墙正在缓缓开启……', { durationMs: 5000 });
+          } else if (unlockEvt.justFinishedDoorOpen) {
+            announceBeatAdvance();
+          }
+
           if (state.observedWallOverlapX === null) {
             voice.dismissCue('wall-evidence');
           } else if (!coached.wallEvidenceNamed) {
@@ -1294,7 +1310,7 @@ function boot() {
             );
           }
 
-          if (state.grabbed && !state.completed && state.isOnNorthPedestal()) {
+          if (state.grabbed && !state.keyInserted && !state.completed && state.isOnNorthPedestal()) {
             northStuckTimer += dtSec;
             if (northStuckTimer >= 12.0 && !coached.northRestoreNudge) {
               coached.northRestoreNudge = true;
@@ -1330,7 +1346,7 @@ function boot() {
                   hud.flashEdge(PALETTE.accent.amberCoral);
                 }
                 hud.showBlockToast(state.lastBlockEvent?.message || '被墙挡住了');
-              } else if (res.onNorthPedestal && !state.completed) {
+              } else if (res.onNorthPedestal && !state.keyInserted && !state.completed) {
                 if (!coached.northArrived) {
                   coached.northArrived = true;
                   voice.speak('tomb', '球送到了。看看底座的形状。', { durationMs: 5800 });
@@ -1351,7 +1367,13 @@ function boot() {
               sfx.playBlocked();
               sanctuary3D.triggerBarrierFlash();
               hud.flashEdge(PALETTE.accent.amberCoral);
-              hud.showBlockToast(state.lastBlockEvent?.message || '缝隙太窄，人穿不过去');
+              hud.showBlockToast(
+                state.unlockStage === 'unlocking'
+                  ? '钥匙正在解锁，请稍候'
+                  : state.unlockStage === 'opening_door'
+                    ? '巨墙正在缓缓开启，请稍候'
+                    : state.lastBlockEvent?.message || '缝隙太窄，人穿不过去'
+              );
               announceBeatAdvance();
             }
             if (res.justEnteredTeleporter) {
@@ -1380,7 +1402,7 @@ function boot() {
         grabStage.renderSideView(state);
         consolePanel.render(state);
         const orbAnchor = sanctuary3D.getScreenAnchor(sanctuary3D.orbRoot);
-        const goalAnchor = !state.grabbed && !state.hasRotated4DWhileGrabbed && !state.completed
+        const goalAnchor = !state.grabbed && !state.hasRotated4DWhileGrabbed && !state.keyInserted && !state.completed
           ? sanctuary3D.getScreenAnchor(sanctuary3D.northRing)
           : null;
         hud.sync(state, hints.getSnapshot(), orbAnchor, goalAnchor);
@@ -1410,7 +1432,6 @@ function boot() {
         loadLevel,
       },
       dispose: () => {
-        if (autoReleaseTimer) clearTimeout(autoReleaseTimer);
         if (openingTimer) clearTimeout(openingTimer);
         voice.dismissCue('wall-evidence');
         scene.dispose();

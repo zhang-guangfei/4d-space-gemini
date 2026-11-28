@@ -553,7 +553,7 @@ export class HudController {
     this.els.btnHint.classList.toggle('is-hint-pulse', hintSnapshot.pulseSuggested);
 
     if (this.els.tabEntryPill) {
-      const showPill = state.grabbed && state.viewMode !== 'side_xzw' && !state.completed;
+      const showPill = state.grabbed && state.viewMode !== 'side_xzw' && !state.keyInserted && !state.completed;
       this.els.tabEntryPill.hidden = !showPill;
       this.els.tabEntryPill.classList.toggle('is-attention', this.tabAttention);
       if (this.els.tabEntryLabel) {
@@ -604,7 +604,7 @@ export class HudController {
       this.els.reticle.classList.remove('is-interactable');
     } else {
       this.els.reticle.classList.remove('is-hidden');
-      const canGrab = state.canGrabOrb() && !state.completed;
+      const canGrab = state.canGrabOrb() && !state.keyInserted && !state.completed;
       this.els.reticle.classList.toggle('is-interactable', canGrab);
       this.els.reticlePrompt.textContent = state.canReconnectAtPedestal
         ? '[E] 重新操控底座上的球'
@@ -613,12 +613,18 @@ export class HudController {
           : '';
     }
 
-    if (state.completed && state.grabbed) {
+    if (state.unlockStage === 'awaiting_release') {
       this.els.controlStripText.innerHTML =
-        '钥匙归位，巨墙正在打开 · 按 <strong>E</strong> 返回自由视角走向北侧传送台';
+        '钥匙已正确插入锁孔 · 请按 <strong>E</strong> 释放对球的控制，回到自由视角';
+    } else if (state.unlockStage === 'unlocking') {
+      this.els.controlStripText.innerHTML =
+        '钥匙与锁孔正在共振解锁，请注视前方巨墙……';
+    } else if (state.unlockStage === 'opening_door') {
+      this.els.controlStripText.innerHTML =
+        '封印已解开，四维巨墙正在缓缓开启……';
     } else if (state.completed) {
       this.els.controlStripText.innerHTML =
-        '巨墙已敞开 · 按 <strong>WASD</strong> 穿过通道踏上前方<strong>北侧传送台</strong> · 按 <strong>R</strong> 重玩';
+        '巨墙已打开 · 按 <strong>WASD</strong> 穿过通道踏上前方<strong>北侧传送台</strong> · 按 <strong>R</strong> 重玩';
     } else if (state.grabbed) {
       this.els.controlStripText.innerHTML =
         '<strong>滚轮</strong> 沿 W 轴移动 · <strong>Shift + 滚轮</strong> 转球 · <strong>W/S</strong> 推拉 · <strong>Tab</strong> 侧视 · <strong>E</strong> 松开';
@@ -631,9 +637,9 @@ export class HudController {
       const showVictory = state.completed && !this.victoryBannerDismissed && !state.enteredTeleporter;
       this.els.victoryBanner.hidden = !showVictory;
       if (showVictory) {
-        this.els.victoryBadge.textContent = '钥匙归位 · 四维巨墙已为你敞开';
+        this.els.victoryBadge.textContent = '巨墙已打开 · 通往下一关的通道已开启';
         this.els.victoryCopy.innerHTML =
-          '圆球从未被压扁，只是像立起的硬币一样把宽度转进了第四维度 w。现在请<strong>穿过打开的四维巨墙</strong>，走向前方发光的<strong>北侧传送台</strong>前往下一关！';
+          '圆球从未被压扁，只是像立起的硬币一样把宽度转进了第四维度 w。现在请<strong>穿过打开的四维巨墙</strong>，踏上前方发光的<strong>北侧传送台</strong>前往下一关！';
         this.els.btnNextLevel.hidden = true;
         this.els.btnReleaseVictory.textContent = '好的 · 前往传送台 (E)';
       }
