@@ -12,6 +12,7 @@
  */
 
 import { clamp, dot4, EPSILON, norm4, normalize4 } from './math4d.js';
+import { PrologueDirectorState } from './prologue-timeline.js';
 
 export const CELL_HALF_SIZE = 3.0; // 6.0m x 6.0m x 6.0m cubic cells (circumference 4a = 24.0m)
 export const CELL_SIZE = CELL_HALF_SIZE * 2;
@@ -621,48 +622,9 @@ export class ZeroGBoundaryNavigator {
 // Prologue State (Level 0: 迷航)
 // ---------------------------------------------------------------------------
 
-export class PrologueVoyagerState {
+export class PrologueVoyagerState extends PrologueDirectorState {
   constructor() {
-    this.reset();
-  }
-
-  reset() {
-    this.levelId = 0;
-    this.elapsedSec = 0;
-    this.totalDurationSec = 17.5;
-    this.completed = false;
-    this.skipped = false;
-    this.beat = 1;
-    this.voiceTriggered = false;
-  }
-
-  update(dtSec) {
-    if (this.completed) return { phase: 'done', justCompleted: false, triggerVoice: false };
-    this.elapsedSec += dtSec;
-    let triggerVoice = false;
-    if (!this.voiceTriggered && this.elapsedSec >= 6.8) {
-      this.voiceTriggered = true;
-      triggerVoice = true;
-    }
-    if (this.elapsedSec >= this.totalDurationSec) {
-      this.completed = true;
-      return { phase: 'done', justCompleted: true, triggerVoice };
-    }
-    const phase =
-      this.elapsedSec < 3.5
-        ? 'warp_alarm'
-        : this.elapsedSec < 9.0
-          ? 'stars_extinguish'
-          : this.elapsedSec < 14.5
-            ? 'white_grid'
-            : 'fade_in_corridor';
-    return { phase, justCompleted: false, triggerVoice };
-  }
-
-  skip() {
-    this.skipped = true;
-    this.completed = true;
-    this.elapsedSec = this.totalDurationSec;
+    super();
   }
 }
 

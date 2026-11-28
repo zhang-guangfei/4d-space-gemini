@@ -20,12 +20,41 @@
     <div class="telescope-label mono">3.0× 光学望远镜 · 按 Tab 退出</div>
   </div>
 
-  <!-- Prologue Minimalist Overlay (Level 0 only) -->
-  <div id="prologue-overlay" class="prologue-overlay" hidden>
-    <div class="prologue-eyebrow mono">序章 · 迷航 — 深空勘测船「远航者号」</div>
-    <div id="prologue-caption" class="prologue-caption">跃迁曲率异常……舷窗外的星辰正在一颗接一颗熄灭。</div>
-    <button id="btn-skip-prologue" class="primary-btn" type="button">跳过序章 · 进入第 1 关 (Space)</button>
+  <!-- Prologue 2.35:1 Cinema Layer (Level 0 only; purely snapshot-driven) -->
+  <div id="prologue-cinema-layer" class="prologue-cinema-layer" hidden>
+    <div id="prologue-whiteout" class="prologue-whiteout" hidden aria-hidden="true"></div>
+
+    <div id="prologue-letterbox-top" class="prologue-letterbox prologue-letterbox-top" aria-hidden="true"></div>
+    <div id="prologue-letterbox-bottom" class="prologue-letterbox prologue-letterbox-bottom" aria-hidden="true"></div>
+
+    <div id="prologue-opening-titles" class="prologue-opening-titles" hidden aria-live="off">
+      <p class="prologue-opening-line" data-line="0"></p>
+      <p class="prologue-opening-line" data-line="1"></p>
+      <p class="prologue-opening-line" data-line="2"></p>
+    </div>
+
+    <div id="prologue-coord-card" class="prologue-coord-card" hidden aria-live="off">
+      <div id="prologue-coord-primary" class="prologue-coord-primary mono"></div>
+      <div class="prologue-coord-divider" aria-hidden="true"></div>
+      <div id="prologue-coord-secondary" class="prologue-coord-secondary mono"></div>
+    </div>
+
+    <div id="prologue-spectrometer" class="prologue-spectrometer" hidden aria-live="polite">
+      <canvas id="prologue-spectrometer-canvas" class="prologue-spectrometer-canvas" width="520" height="56"></canvas>
+      <div id="prologue-spectrometer-text" class="prologue-spectrometer-text mono"></div>
+    </div>
+
+    <div id="prologue-subtitle" class="prologue-subtitle" hidden aria-live="polite">
+      <span id="prologue-subtitle-speaker" class="prologue-subtitle-speaker"></span>
+      <span id="prologue-subtitle-text" class="prologue-subtitle-text"></span>
+    </div>
+
+    <button id="btn-skip-prologue" class="prologue-skip-pill mono" type="button">按 Space 跳过</button>
+    <div id="prologue-audio-hint" class="prologue-audio-hint mono" hidden>点击任意处开启电影音景</div>
   </div>
+
+  <!-- Smooth Polar-White Cross-Dissolve Veil on Prologue Completion/Skip -->
+  <div id="prologue-transition-veil" class="prologue-transition-veil" aria-hidden="true"></div>
 
   <!-- Minimal Scientific HUD Layer -->
   <div id="hud-root" class="hud-root">

@@ -29,6 +29,39 @@ export const SPEAKERS = Object.freeze({
     pitch: 0.84, // D12 exact 0.84x lowered pitch
     rate: 0.88,
   },
+  narrator: {
+    id: 'narrator',
+    displayName: '旁白',
+    roleTag: '文明纪实',
+    color: '#E8EFF8',
+    pitch: 0.94,
+    rate: 0.9,
+  },
+  broadcast: {
+    id: 'broadcast',
+    displayName: '舰桥广播',
+    roleTag: '舰队广播',
+    color: '#A5FCF2',
+    pitch: 1.02,
+    rate: 1.0,
+  },
+  ship_ai: {
+    id: 'ship_ai',
+    displayName: '远航者号 · 舰载系统',
+    roleTag: '曲率监测阵列',
+    color: '#F7C346',
+    pitch: 1.0,
+    rate: 1.02,
+  },
+  tomb_signal: {
+    id: 'tomb_signal',
+    displayName: '舰载量子频谱仪',
+    roleTag: '高维引力波频谱',
+    color: '#4DE6D3',
+    pitch: 0.84,
+    rate: 0.88,
+    skipSpeechSynthesis: true,
+  },
 });
 
 export class CharacterVoiceEngine {
@@ -70,9 +103,9 @@ export class CharacterVoiceEngine {
     this.userUnlocked = true;
     this._ensureAudio();
     if (this.pendingSpeech && this.enabled) {
-      const { speakerId, text } = this.pendingSpeech;
+      const { speakerId, text, options } = this.pendingSpeech;
       this.pendingSpeech = null;
-      this._playAudioAndSpeech(speakerId, text);
+      this._playAudioAndSpeech(speakerId, text, options);
     }
   }
 
@@ -235,7 +268,7 @@ export class CharacterVoiceEngine {
       if (/zh[-_]?cn/i.test(v.lang)) score += 20;
       if (/natural|neural|online/i.test(name)) score += 40; // Edge Microsoft Neural voices!
       if (/google/i.test(name)) score += 25; // Chrome Google 普通话!
-      if (speakerId === 'linxia') {
+      if (speakerId === 'linxia' || speakerId === 'broadcast') {
         if (/xiaoxiao|xiaoyi|ting|huihui|yaoyao|female|mei/i.test(name)) score += 30;
       } else {
         if (/yunjian|yunxi|yunyang|kangkang|male|li/i.test(name)) score += 30;
@@ -247,12 +280,19 @@ export class CharacterVoiceEngine {
     return ranked[0] || null;
   }
 
-  _playAudioAndSpeech(speakerId, text) {
+  _playAudioAndSpeech(speakerId, text, options = {}) {
     const profile = SPEAKERS[speakerId] || SPEAKERS.tomb;
-    if (speakerId === 'tomb') {
-      this._playTombMetallicResonance();
-    } else {
-      this._playLinXiaChirp();
+    // Hard FORBID-05 guard: NEVER invoke human speechSynthesis for tomb_signal or skipSpeechSynthesis profiles
+    if (profile.skipSpeechSynthesis || speakerId === 'tomb_signal' || options.skipSpeechSynthesis) {
+      return;
+    }
+
+    if (!options.skipChirp) {
+      if (speakerId === 'tomb') {
+        this._playTombMetallicResonance();
+      } else if (speakerId === 'linxia' || speakerId === 'broadcast') {
+        this._playLinXiaChirp();
+      }
     }
 
     const synth = globalThis.speechSynthesis;
@@ -273,13 +313,22 @@ export class CharacterVoiceEngine {
     }
   }
 
-  dismissCue(cue) {
-    if (this.currentCue !== cue) return;
+  cancel() {
     this.currentCue = null;
     clearTimeout(this.subtitleTimer);
+    this.subtitleTimer = null;
     this.pendingSpeech = null;
     this.onSubtitle({ visible: false });
-    globalThis.speechSynthesis?.cancel();
+    try {
+      globalThis.speechSynthesis?.cancel();
+    } catch {
+      // ignore
+    }
+  }
+
+  dismissCue(cue) {
+    if (this.currentCue !== cue) return;
+    this.cancel();
   }
 
   /**
@@ -287,6 +336,9 @@ export class CharacterVoiceEngine {
    */
   speak(speakerId, text, options = {}) {
     const profile = SPEAKERS[speakerId] || SPEAKERS.tomb;
+    const skipTts = Boolean(
+      profile.skipSpeechSynthesis || speakerId === 'tomb_signal' || options.skipSpeechSynthesis
+    );
     const durationMs = options.durationMs ?? Math.max(4600, Math.min(7600, text.length * 175));
     this.currentCue = options.cue ?? null;
 
@@ -304,14 +356,14 @@ export class CharacterVoiceEngine {
       this.onSubtitle({ visible: false, speaker: profile, text: '' });
     }, durationMs);
 
-    if (!this.enabled) return;
+    if (!this.enabled || skipTts) return;
 
     if (!this.userUnlocked) {
       // Queue for instant playback on the player's first gesture so Chrome/Edge never drops it!
-      this.pendingSpeech = { speakerId, text };
+      this.pendingSpeech = { speakerId, text, options };
       return;
     }
 
-    this._playAudioAndSpeech(speakerId, text);
+    this._playAudioAndSpeech(speakerId, text, options);
   }
 }

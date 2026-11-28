@@ -35,15 +35,14 @@ export class HudController {
     this.tabAttention = false;
     this.ch1ModalOpen = false;
     this.teleporterJumpHandler = null;
+    this.prologueOverlay = null;
 
     this.els = {
       zonePill: document.getElementById('zone-pill'),
       levelHeading: document.getElementById('level-heading'),
       edgeShimmer: document.getElementById('edge-shimmer'),
       telescopeOverlay: document.getElementById('telescope-overlay'),
-      prologueOverlay: document.getElementById('prologue-overlay'),
-      prologueCaption: document.getElementById('prologue-caption'),
-      btnSkipPrologue: document.getElementById('btn-skip-prologue'),
+      prologueCinemaLayer: document.getElementById('prologue-cinema-layer'),
       honestBadge: document.getElementById('honest-view-badge'),
       honestDot: document.getElementById('honest-badge-dot'),
       honestTitle: document.getElementById('honest-badge-title'),
@@ -122,6 +121,10 @@ export class HudController {
     this._populateRoadmap();
   }
 
+  setPrologueOverlay(controller) {
+    this.prologueOverlay = controller || null;
+  }
+
   setActiveLevel(levelId) {
     this.activeLevelId = levelId;
     const meta = LEVEL_META[levelId] || LEVEL_META[1];
@@ -145,8 +148,10 @@ export class HudController {
     if (this.els.tacticalPanelSub) {
       this.els.tacticalPanelSub.textContent = isZoneA ? '8 胞 · 24 面' : '沿第四维度 w';
     }
-    if (this.els.prologueOverlay) {
-      this.els.prologueOverlay.hidden = !isPrologue;
+    if (this.prologueOverlay) {
+      this.prologueOverlay.setVisible(isPrologue);
+    } else if (this.els.prologueCinemaLayer) {
+      this.els.prologueCinemaLayer.hidden = !isPrologue;
     }
     if (this.els.telescopeOverlay) {
       this.els.telescopeOverlay.hidden = true;
@@ -201,7 +206,6 @@ export class HudController {
   }
 
   _bindButtons() {
-    this.els.btnSkipPrologue?.addEventListener('click', () => this.cb.onSkipPrologue?.());
     this.els.btnGuide?.addEventListener('click', () => this.cb.onToggleGuide?.());
     this.els.btnHint?.addEventListener('click', () => this.cb.onRequestHint?.());
     this.els.btnVoice?.addEventListener('click', () => this.cb.onToggleVoice?.());
@@ -378,6 +382,10 @@ export class HudController {
 
   showSubtitle({ visible, speaker, text, tierLabel }) {
     if (!this.els.subtitleBar) return;
+    if (this.activeLevelId === 0) {
+      this.els.subtitleBar.classList.remove('is-visible');
+      return;
+    }
     if (!visible) {
       this.els.subtitleBar.classList.remove('is-visible');
       return;
@@ -431,8 +439,8 @@ export class HudController {
    */
   syncChapter1(vm) {
     if (vm.levelId === 0) {
-      if (this.els.prologueCaption && vm.prologueCaption) {
-        this.els.prologueCaption.textContent = vm.prologueCaption;
+      if (this.prologueOverlay && vm.snapshot) {
+        this.prologueOverlay.sync(vm.snapshot, vm.spectrometerBars || null);
       }
       return;
     }

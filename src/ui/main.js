@@ -12,6 +12,7 @@
  */
 
 import { angularDistanceMod180Deg } from '../core/math4d.js';
+import { PROLOGUE_SHOTS } from '../core/prologue-timeline.js';
 import { Level14HairlineSlitState } from '../core/sanctuary-4d.js';
 import {
   ANTIPODAL_CELL,
@@ -30,6 +31,7 @@ import { GrabStageController } from '../engine/grab-stage.js';
 import { InputController } from '../engine/input-controller.js';
 import { PALETTE } from '../engine/phase-materials.js';
 import { TesseractTopologyMap } from '../engine/portal-optics.js';
+import { PrologueAudioDirector } from '../engine/prologue-audio.js';
 import { SoundFxEngine } from '../engine/sound-fx.js';
 import { TacticalConsole } from '../engine/tactical-console.js';
 import {
@@ -42,6 +44,7 @@ import {
 import { Level14SanctuaryScene } from '../levels/chapter2-sanctuary.js';
 import { HudController, PLAYABLE_LEVEL_IDS } from './hud.js';
 import { PrincipleGuideController } from './principle-guide.js';
+import { PrologueOverlayController } from './prologue-overlay.js';
 
 const L1_HYPOTHESIS_NOTES = Object.freeze({
   hyp_ring: {
@@ -58,20 +61,43 @@ const L1_HYPOTHESIS_NOTES = Object.freeze({
   },
 });
 
-function parseInitialLevel() {
+function parseBootOptions() {
   const params = new URLSearchParams(window.location.search);
-  const raw = params.get('level');
-  if (raw === null) return 0; // Default campaign entry: Prologue -> Levels 1–4
-  const parsed = Number(raw);
-  if (Number.isInteger(parsed) && PLAYABLE_LEVEL_IDS.includes(parsed)) {
-    return parsed;
+  const rawLevel = params.get('level');
+  let levelId = 0; // Default campaign entry: Prologue -> Levels 1–4
+  if (rawLevel !== null) {
+    const parsed = Number(rawLevel);
+    if (Number.isInteger(parsed) && PLAYABLE_LEVEL_IDS.includes(parsed)) {
+      levelId = parsed;
+    }
   }
-  return 0;
+  const rawT = params.get('t');
+  const initialTimeSec = rawT !== null && rawT !== '' && Number.isFinite(Number(rawT)) ? Number(rawT) : null;
+  return {
+    levelId,
+    d9Fallback: params.get('d9fallback') === '1',
+    auditMode: params.get('audit') === '1',
+    holdEnd: params.get('holdEnd') === '1',
+    initialTimeSec,
+    initialShotId: params.get('shot') || null,
+  };
 }
 
-function parseInitialD9Fallback() {
-  const params = new URLSearchParams(window.location.search);
-  return params.get('d9fallback') === '1';
+function resolveInitialPrologueTime(bootOpts) {
+  if (bootOpts.initialTimeSec !== null) return bootOpts.initialTimeSec;
+  if (!bootOpts.initialShotId) return null;
+  const target = String(bootOpts.initialShotId).trim().toUpperCase();
+  for (const shot of PROLOGUE_SHOTS) {
+    if (shot.id.toUpperCase() === target) {
+      return Number(((shot.startSec + shot.endSec) * 0.5).toFixed(2));
+    }
+    for (const sb of shot.subBeats || []) {
+      if (sb.id.toUpperCase() === target) {
+        return Number(((sb.startSec + sb.endSec) * 0.5).toFixed(2));
+      }
+    }
+  }
+  return null;
 }
 
 function boot() {
@@ -113,14 +139,16 @@ function boot() {
     subEl: document.getElementById('tactical-panel-sub'),
   });
 
-  let activeLevelId = parseInitialLevel();
-  let d9FallbackEnabled = parseInitialD9Fallback();
+  const bootOpts = parseBootOptions();
+  let activeLevelId = bootOpts.levelId;
+  let d9FallbackEnabled = bootOpts.d9Fallback;
   let paused = false;
   let guideOpen = false;
   let ch1ModalOpen = false;
   let teleporterOpen = false;
   let audioUnlocked = false;
   let activeRuntime = null;
+  let prologueOverlay = null;
 
   const syncPauseState = () => {
     input.setPaused(paused || guideOpen || ch1ModalOpen || teleporterOpen);
@@ -132,9 +160,14 @@ function boot() {
     sfx.unlock();
     if (activeLevelId === 14) {
       sfx.startSanctuaryAmbience();
-    } else {
+    } else if (activeLevelId >= 1 && activeLevelId <= 4) {
       sfx.startStationAmbience();
+    } else if (activeLevelId === 0) {
+      // FORBID-04: Never run station or sanctuary ambience hum during Prologue
+      sfx.stopAmbience();
+      activeRuntime?.prologueAudio?.unlock?.();
     }
+    prologueOverlay?.setAudioUnlocked(true);
     voice.unlockOnGesture();
   };
 
@@ -165,6 +198,7 @@ function boot() {
     paused = !paused;
     syncPauseState();
     hud?.setPaused(paused);
+    activeRuntime?.setPaused?.(paused);
   };
 
   // Switch seamlessly between any playable level (0, 1, 2, 3, 4, 14) with zero leaked resources
@@ -212,8 +246,13 @@ function boot() {
 
     if (audioUnlocked) {
       sfx.stopAmbience();
-      if (targetId === 14) sfx.startSanctuaryAmbience();
-      else sfx.startStationAmbience();
+      if (targetId === 14) {
+        sfx.startSanctuaryAmbience();
+      } else if (targetId >= 1 && targetId <= 4) {
+        sfx.startStationAmbience();
+      }
+    } else if (targetId === 0) {
+      sfx.stopAmbience();
     }
 
     if (targetId === 14) {
@@ -224,6 +263,14 @@ function boot() {
 
     syncPauseState();
     exposeDiagnostics();
+  };
+
+  // Decoupled Prologue completion/skip handoff router (single-line swappable)
+  const onPrologueComplete = ({ skipped = false, exitColor = '#FFFFFF', transitionMs = 450 } = {}) => {
+    void skipped;
+    if (activeLevelId !== 0) return;
+    prologueOverlay?.triggerTransitionDissolve({ exitColor, transitionMs });
+    loadLevel(1);
   };
 
   hud = new HudController({
@@ -247,6 +294,7 @@ function boot() {
       unlockAudioOnce();
       voice.setEnabled(!voice.enabled);
       sfx.setMuted(!voice.enabled);
+      activeRuntime?.prologueAudio?.setMuted?.(!voice.enabled);
       hud.setVoiceEnabled(voice.enabled);
     },
     onToggleConsole: () => {
@@ -307,6 +355,17 @@ function boot() {
     },
   });
 
+  prologueOverlay = new PrologueOverlayController({
+    auditMode: bootOpts.auditMode,
+    onSkip: () => {
+      unlockAudioOnce();
+      if (activeLevelId === 0) {
+        activeRuntime?.skip?.();
+      }
+    },
+  });
+  hud.setPrologueOverlay(prologueOverlay);
+
   const input = new InputController(canvas, {
     onUserGesture: unlockAudioOnce,
     onTogglePause: handleTogglePause,
@@ -339,9 +398,15 @@ function boot() {
     scene.skipPointerMovePicking = true;
 
     const camera = new B.FreeCamera(`ch1_cam_${levelId}`, new B.Vector3(0, 1.72, 0), scene);
-    camera.minZ = 0.14;
-    camera.maxZ = 140;
-    camera.fov = 0.92;
+    if (levelId === 0) {
+      camera.minZ = 0.08;
+      camera.maxZ = 1200;
+      camera.fov = 0.84;
+    } else {
+      camera.minZ = 0.14;
+      camera.maxZ = 140;
+      camera.fov = 0.92;
+    }
 
     const hints = new TieredHintController(levelId === 0 ? 1 : levelId);
     let lastBeat = 0;
@@ -352,15 +417,23 @@ function boot() {
     let firstNeighborCoached = false;
     let riftAwakeAnnounced = false;
     let activeCalloutAnchorKind = null;
+    let prologueAudio = null;
+    let prologueSkipLocked = false;
 
     let state = null;
     let scene3D = null;
 
     if (levelId === 0) {
+      sfx.stopAmbience();
       input.setMode('prologue');
       input.setLookAngles(0, 0);
       state = new PrologueVoyagerState();
       scene3D = new PrologueScene(scene, camera);
+      prologueAudio = new PrologueAudioDirector(sfx, voice);
+      prologueAudio.setMuted(!voice.enabled);
+      if (audioUnlocked) {
+        prologueAudio.unlock();
+      }
     } else if (levelId === 1) {
       input.setMode('walk');
       input.setGrabbed(false);
@@ -548,10 +621,19 @@ function boot() {
       state,
       scene3D,
       hints,
-      skip: () => {
+      prologueAudio,
+      setPaused: (isPaused) => {
         if (levelId === 0) {
+          prologueAudio?.setPaused(isPaused);
+        }
+      },
+      skip: () => {
+        if (levelId === 0 && !prologueSkipLocked) {
+          prologueSkipLocked = true;
+          prologueAudio?.stopAll();
+          voice.cancel();
           state.skip();
-          loadLevel(1);
+          onPrologueComplete({ skipped: true, exitColor: '#FFFFFF', transitionMs: 450 });
         }
       },
       toggleTab: () => {
@@ -679,9 +761,18 @@ function boot() {
         riftAwakeAnnounced = false;
         activeCalloutAnchorKind = null;
         teleporterOpen = false;
+        prologueSkipLocked = false;
         hud.resetBanner();
         hud.closeCh1Modal(true);
-        if (levelId === 1) input.setLookAngles(0, 0.02);
+        if (levelId === 0) {
+          prologueAudio?.stopAll();
+          voice.cancel();
+          scene3D.seekToState(state, { warmupTicks: 12 });
+          const snap = state.getSnapshot();
+          prologueOverlay.sync(snap, prologueAudio?.getSpectrometerBars(48, snap) || null);
+        } else if (levelId === 1) {
+          input.setLookAngles(0, 0.02);
+        }
         syncPauseState();
         playOpening();
       },
@@ -690,11 +781,14 @@ function boot() {
           const curPhase = state.getCurrentPuzzlePhase ? state.getCurrentPuzzlePhase() : null;
           if (levelId === 0) {
             const p = state.update(dtSec);
-            if (p.triggerVoice) {
-              voice.speak('linxia', '08 号，外面的空间曲率不对劲，我先出舱看看……别跟丢了。', { durationMs: 6500 });
+            if (p.firedCues && p.firedCues.length > 0) {
+              prologueAudio?.handleFiredCues(p.firedCues, p.snapshot);
             }
-            if (p.justCompleted) {
-              loadLevel(1);
+            prologueAudio?.update(p.snapshot, dtSec);
+            if (p.justCompleted && !bootOpts.holdEnd) {
+              prologueSkipLocked = true;
+              prologueAudio?.stopAll();
+              onPrologueComplete({ skipped: false, exitColor: '#FFFFFF', transitionMs: 450 });
               return;
             }
           } else if (levelId === 1) {
@@ -761,16 +855,9 @@ function boot() {
 
         // Render F-key 8-Cell Holographic Topology Map & Sync HUD
         if (levelId === 0) {
-          const t = state.elapsedSec;
-          const cap =
-            t < 3.5
-              ? '深空勘测船「远航者号」跃迁曲率失控，警报响彻驾驶舱……'
-              : t < 8.5
-                ? '舷窗外的星辰正在一颗接一颗熄灭，群星被纯白吞噬。'
-                : t < 14.5
-                  ? '07 号林夏：「08 号，外面的空间曲率不对劲，我先出舱看看……别跟丢了。」'
-                  : '无边无际的纯白几何空间正在凝实——正在淡入「回廊」W+ 起始舱室……';
-          hud.syncChapter1({ levelId: 0, prologueCaption: cap });
+          const snap = state.getSnapshot();
+          const bars = prologueAudio ? prologueAudio.getSpectrometerBars(48, snap) : snap.spectrometer?.bars;
+          hud.syncChapter1({ levelId: 0, snapshot: snap, spectrometerBars: bars });
         } else if (levelId === 1) {
           const currCell = state.getCellId();
           const near = state.getNearestInteractable();
@@ -989,6 +1076,68 @@ function boot() {
         reset: () => runtime.reset(),
         showGuide: () => principleGuide.show(),
         dismissGuide: () => principleGuide.hide(),
+        ...(levelId === 0
+          ? {
+              seekPrologue: (tSec, { warmupTicks = 18 } = {}) => {
+                const snap = state.seek(tSec);
+                prologueAudio?.stopAll();
+                prologueAudio?.update(snap, 0);
+                scene3D.seekToState(state, { warmupTicks });
+                const bars = prologueAudio ? prologueAudio.getSpectrometerBars(48, snap) : snap.spectrometer?.bars;
+                prologueOverlay.sync(snap, bars);
+                scene.render();
+                return snap;
+              },
+              getPrologueTelemetry: () => {
+                const snap = state.getSnapshot();
+                const ov = prologueOverlay.getOverlayTelemetry();
+                const diag = scene3D.getPrologueDiagnostics();
+                const aud = prologueAudio
+                  ? prologueAudio.getTelemetry()
+                  : {
+                      audioMode: 'prologue_cinema',
+                      stationAmbienceActive: false,
+                      shipHumActive: false,
+                      tombTtsCount: 0,
+                    };
+                return {
+                  elapsedSec: snap.elapsedSec,
+                  shotId: snap.shotId,
+                  subBeatId: snap.subBeatId,
+                  segmentId: snap.segmentId,
+                  shotProgress: snap.shotProgress,
+                  letterboxRatio: snap.letterboxRatio,
+                  activeSubtitle: snap.shotId === 'S6' ? null : snap.activeSubtitle,
+                  openingLinesAlpha: [...snap.openingLinesAlpha],
+                  coordCardAlpha: snap.coordCardAlpha,
+                  alertLevel: snap.alertLevel,
+                  starExtinctionProgress: snap.starExtinctionProgress,
+                  orbExcursion4D: snap.orbExcursion4D,
+                  xrayWaveProgress: snap.xrayWaveProgress,
+                  shatterProgress: snap.shatterProgress,
+                  cryoWakeupProgress: snap.cryoWakeupProgress,
+                  origamiFoldProgress: snap.origamiFoldProgress,
+                  spectrometerVisible: ov.spectrometerVisible,
+                  spectrometerBars: ov.spectrometerBars,
+                  spectrometerText: ov.spectrometerText,
+                  skipBtnVisible: ov.skipBtnVisible,
+                  activeMeshCount: diag.activeMeshCount,
+                  pbrCount: diag.pbrCount,
+                  envTex: diag.envTex,
+                  fogMode: diag.fogMode,
+                  particles: diag.particles,
+                  postProcs: diag.postProcs,
+                  shadowGens: diag.shadowGens,
+                  mirrorTex: diag.mirrorTex,
+                  ghostViolations: diag.ghostViolations,
+                  audioMode: aud.audioMode,
+                  stationAmbienceActive: aud.stationAmbienceActive,
+                  shipHumActive: aud.shipHumActive,
+                  tombTtsCount: aud.tombTtsCount,
+                };
+              },
+            }
+          : {}),
         forceTransitTo: (cellId) => {
           if (state.forceTransitTo) {
             const res = state.forceTransitTo(cellId);
@@ -1005,6 +1154,11 @@ function boot() {
       },
       dispose: () => {
         if (openingTimer) clearTimeout(openingTimer);
+        if (levelId === 0) {
+          prologueAudio?.dispose();
+          prologueOverlay.reset();
+          prologueOverlay.setVisible(false);
+        }
         scene3D?.dispose?.();
         scene.dispose();
       },
@@ -1456,6 +1610,8 @@ function boot() {
       topologyMap,
       hud,
       voice,
+      prologueOverlay,
+      prologueAudio: activeRuntime?.prologueAudio || null,
       stepFrame: (dtSec = 1 / 24, shouldRender = true) => activeRuntime?.stepFrame(dtSec, shouldRender),
       loadLevel,
       actions: activeRuntime?.actions || {},
@@ -1465,17 +1621,33 @@ function boot() {
   // Boot initial level cleanly
   loadLevel(activeLevelId);
 
-  // Main 60 FPS Render & Simulation Loop
-  let lastTime = performance.now();
-  engine.runRenderLoop(() => {
-    const now = performance.now();
-    const dtSec = Math.min(0.05, Math.max(0.001, (now - lastTime) / 1000));
-    lastTime = now;
-    activeRuntime?.stepFrame(dtSec);
-  });
+  if (activeLevelId === 0) {
+    const startT = resolveInitialPrologueTime(bootOpts);
+    if (bootOpts.auditMode || startT !== null) {
+      activeRuntime?.actions?.seekPrologue?.(startT !== null ? startT : 0, { warmupTicks: 18 });
+    } else {
+      activeRuntime?.stepFrame?.(0, true);
+    }
+  }
+
+  // Main 60 FPS Render & Simulation Loop (suppressed under ?level=0&audit=1 to eliminate boot drift)
+  if (!(bootOpts.auditMode && activeLevelId === 0)) {
+    let lastTime = performance.now();
+    engine.runRenderLoop(() => {
+      const now = performance.now();
+      const dtSec = Math.min(0.05, Math.max(0.001, (now - lastTime) / 1000));
+      lastTime = now;
+      activeRuntime?.stepFrame(dtSec);
+    });
+  }
 
   window.addEventListener('resize', () => {
     engine.resize();
+    if (activeLevelId === 0 && activeRuntime?.state) {
+      const snap = activeRuntime.state.getSnapshot();
+      const bars = activeRuntime.prologueAudio?.getSpectrometerBars(48, snap) || snap.spectrometer?.bars;
+      prologueOverlay.sync(snap, bars);
+    }
   });
 }
 

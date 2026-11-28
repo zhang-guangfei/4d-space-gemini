@@ -59,6 +59,8 @@ export class InputController {
     this.eKeyDownAt = 0;
     this.eUsedForRoll = false;
     if (mode === 'prologue') {
+      this.dragging = false;
+      this.activePointerId = null;
       this.releasePointerLock();
     }
   }
@@ -121,6 +123,7 @@ export class InputController {
     this._onPointerDown = (e) => {
       if (this.paused) return;
       this.cb.onUserGesture?.();
+      if (this.mode === 'prologue') return;
       // Support Left (0) or Right (2) mouse button drag for effortless camera look / SO(3) rotation
       if (e.button === 0 || e.button === 2) {
         this.dragging = true;
@@ -167,7 +170,7 @@ export class InputController {
     };
 
     this._onPointerMove = (e) => {
-      if (this.paused) return;
+      if (this.paused || this.mode === 'prologue') return;
 
       let dx = 0;
       let dy = 0;

@@ -1241,42 +1241,261 @@ body.is-prologue #ch1-compass {
   display: none !important;
 }
 
-/* Prologue Minimalist Story Overlay */
-.prologue-overlay {
-  position: fixed;
-  left: 50%;
-  bottom: 42px;
-  transform: translateX(-50%);
-  z-index: 25;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  max-width: min(640px, 90vw);
-  padding: 18px 26px;
-  border-radius: 10px;
-  background: rgba(10, 15, 24, 0.84);
-  border: 1px solid rgba(77, 230, 211, 0.38);
-  backdrop-filter: blur(12px);
-  text-align: center;
-  box-shadow: 0 20px 56px rgba(0, 0, 0, 0.6);
+/* ---------------------------------------------------------------------------
+ * Prologue 2.35:1 Cinema Overlay Layer (Level 0 Only — Purely Snapshot-Driven)
+ * --------------------------------------------------------------------------- */
+body:not(.is-prologue) .prologue-cinema-layer,
+.prologue-cinema-layer[hidden] {
+  display: none !important;
 }
 
-.prologue-overlay[hidden] {
+.prologue-cinema-layer {
+  --prologue-bar-h: 88px;
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.prologue-whiteout {
+  position: fixed;
+  inset: 0;
+  z-index: 19;
+  background: #ffffff;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.prologue-whiteout[hidden] {
   display: none;
 }
 
-.prologue-eyebrow {
-  font-size: 11px;
-  letter-spacing: 0.12em;
-  color: var(--accent-cyan);
+.prologue-letterbox {
+  position: fixed;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  background: #000000;
+  pointer-events: none;
 }
 
-.prologue-caption {
-  font-size: 16px;
+.prologue-letterbox[hidden] {
+  display: none;
+}
+
+.prologue-letterbox-top {
+  top: 0;
+}
+
+.prologue-letterbox-bottom {
+  bottom: 0;
+}
+
+/* S0A Centered 3-Line Thin Cinema Opening Titles */
+.prologue-opening-titles {
+  position: fixed;
+  top: 46%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 22;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  width: min(860px, 84vw);
+  text-align: center;
+  pointer-events: none;
+}
+
+.prologue-opening-titles[hidden] {
+  display: none;
+}
+
+.prologue-opening-line {
+  margin: 0;
+  font-family: "PingFang SC", "Noto Serif SC", "Songti SC", "Microsoft YaHei", var(--font-sans);
+  font-size: clamp(20px, 2.15vw, 30px);
+  font-weight: 300;
+  letter-spacing: 0.16em;
   line-height: 1.55;
-  color: #f4f7fb;
+  color: #eef4fc;
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.88), 0 0 28px rgba(165, 224, 255, 0.16);
+  will-change: opacity, transform;
+}
+
+/* S0C Aerospace Monospace Spacetime Coordinate Card */
+.prologue-coord-card {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 22;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  width: min(820px, 86vw);
+  text-align: center;
+  pointer-events: none;
+}
+
+.prologue-coord-card[hidden] {
+  display: none;
+}
+
+.prologue-coord-primary {
+  font-size: clamp(18px, 1.85vw, 25px);
   font-weight: 500;
+  letter-spacing: 0.14em;
+  color: #eaf6ff;
+  text-shadow: 0 2px 16px rgba(0, 0, 0, 0.9), 0 0 22px rgba(77, 230, 211, 0.22);
+}
+
+.prologue-coord-divider {
+  width: 184px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(77, 230, 211, 0.65), transparent);
+}
+
+.prologue-coord-secondary {
+  font-size: clamp(13px, 1.25vw, 16px);
+  font-weight: 400;
+  letter-spacing: 0.11em;
+  color: #9cc8e2;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.92);
+}
+
+/* S3 Frameless Transparent Quantum Spectrometer + Partial Decode */
+.prologue-spectrometer {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--prologue-bar-h, 88px) + 18px);
+  transform: translateX(-50%);
+  z-index: 23;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  width: min(620px, calc(100vw - 320px));
+  background: transparent;
+  border: none;
+  pointer-events: none;
+}
+
+.prologue-spectrometer[hidden] {
+  display: none;
+}
+
+.prologue-spectrometer-canvas {
+  display: block;
+  width: min(520px, 100%);
+  height: 52px;
+  background: transparent;
+}
+
+.prologue-spectrometer-text {
+  font-size: clamp(12px, 1.15vw, 14.5px);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  line-height: 1.45;
+  color: #7ef2e5;
+  text-align: center;
+  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.96), 0 0 14px rgba(77, 230, 211, 0.42);
+}
+
+/* Cinema Dialogue Subtitle (Seated Cleanly Above Bottom Letterbox, Zero Overlap) */
+.prologue-subtitle {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--prologue-bar-h, 88px) + 14px);
+  transform: translateX(-50%);
+  z-index: 23;
+  max-width: min(740px, calc(100vw - 320px));
+  padding: 5px 14px;
+  border-radius: 4px;
+  background: rgba(4, 8, 15, 0.44);
+  text-align: center;
+  font-size: clamp(14px, 1.32vw, 17px);
+  font-weight: 400;
+  letter-spacing: 0.05em;
+  line-height: 1.56;
+  color: #f3f7fc;
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.95), 0 2px 18px rgba(0, 0, 0, 0.78);
+  pointer-events: none;
+}
+
+.prologue-subtitle[hidden] {
+  display: none;
+}
+
+.prologue-subtitle-speaker {
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  margin-right: 2px;
+}
+
+.prologue-subtitle-speaker[hidden] {
+  display: none;
+}
+
+/* Discreet Space Skip Pill (Bottom-Right Above Bottom Letterbox; Hidden in S6) */
+.prologue-skip-pill {
+  position: fixed;
+  right: 20px;
+  bottom: calc(var(--prologue-bar-h, 88px) + 14px);
+  z-index: 24;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: rgba(6, 11, 20, 0.56);
+  border: 1px solid rgba(212, 228, 246, 0.24);
+  color: rgba(232, 240, 250, 0.72);
+  font-size: 11.5px;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  pointer-events: auto;
+  backdrop-filter: blur(6px);
+}
+
+.prologue-skip-pill:hover {
+  color: #ffffff;
+  border-color: rgba(77, 230, 211, 0.65);
+  background: rgba(10, 18, 30, 0.82);
+}
+
+.prologue-skip-pill[hidden] {
+  display: none;
+}
+
+/* Discreet Audio Unlock Hint (Top-Right Below Top Letterbox) */
+.prologue-audio-hint {
+  position: fixed;
+  top: calc(var(--prologue-bar-h, 88px) + 10px);
+  right: 20px;
+  z-index: 23;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(6, 11, 20, 0.45);
+  border: 1px solid rgba(165, 224, 255, 0.18);
+  color: rgba(220, 234, 248, 0.58);
+  font-size: 10.5px;
+  letter-spacing: 0.07em;
+  pointer-events: none;
+}
+
+.prologue-audio-hint[hidden] {
+  display: none;
+}
+
+/* Smooth Post-Prologue White Cross-Dissolve Veil */
+.prologue-transition-veil {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: none;
+  opacity: 0;
+  background: #ffffff;
+  pointer-events: none;
 }
 
 /* Optical Telescope Reticle Overlay (Tab in Levels 1–4) */
